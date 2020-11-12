@@ -1,5 +1,5 @@
 /data/
-.ipynb_checkpoint
-.asv
+*.ipynb_checkpoint
+*.asv
 ./code/Training/*.mat
 *.mat
