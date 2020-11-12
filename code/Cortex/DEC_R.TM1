@@ -1,0 +1,1053 @@
+// Timing file for modifications of a match-to-sample protocol
+
+#include "css_inc.h"
+#include "encodes.h"
+
+#define FIX_WINDOW 3.50
+#define White 0
+
+#define ITI 1000               //inter-trial interval
+#define WAIT_FOR_BAR_GRAB 100000
+#define WAIT_FOR_FIX 5000
+#define PRE_TIME 500		//pure fixation time
+
+#define SAMPLE  100       //only one sample (stimulus or not)
+#define DELAY  2700       //delay time 
+
+#define NON_MATCH_TIME 1000
+#define NON_MATCH_WAIT_TIME 200
+#define MATCH_STILL_WAIT_TIME 150
+#define MATCH_TIME 850       //match_time + match_still_wait_time = total match time
+
+#define TICKSMATCH 12
+#define TICKSNONMATCH 12
+
+#define TICKSSTIM 12
+#define TICKSNOSTIM 12
+
+#define TIME_OUT_MATCH_COLOR 200
+#define TIME_OUT_NON_MATCH_COLOR 200
+#define TIME_OUT_FIX_COLOR 200
+
+#define TIME_OUT_MATCH 1000
+#define TIME_OUT_NON_MATCH 1000
+
+
+int bar;
+int fix;
+int n;
+int tics;          //rewards
+int KOND = 0;
+int BLOK = 0;
+
+
+void clr_screen(); 
+void store_event(int code);
+void iti();
+void bar_grab();
+void time_out_bar();
+void start_fixation();
+void bad_fixation();
+void time_out_fix();
+void pre_sample();
+void sample();
+void delay();
+void non_match();
+void match_still_wait();
+void match();
+void last_response();
+void Richtig();
+void give_reward();
+void write_rewards();
+void Falsch();
+void time_out_match();
+void time_out_non_match();
+void erase_file();
+
+
+//**************************************************
+//*****************start of main********************
+//**************************************************
+main()
+{
+  set_timer(40);
+  while(timer_expired()==0);    //time to initiate
+
+  store_event(9);		//start ITI
+  store_event(9);
+  store_event(9);   
+  
+  iti();
+  
+  start_trial(10);
+  display_histogram();
+  display_trial_progress(1);
+  				
+  put_eye_data_in_buf(1);
+  store_event(100);		//start EOG data collection
+
+  bar_grab();
+   
+  display_eye_path(0);
+  
+  put_eye_data_in_buf(0);
+  store_event(101);		//end EOG data collection
+  display_trial_progress(0);
+  update_histogram();
+
+  store_event(18);		//end Post-trial
+  store_event(18);
+  store_event(18);
+
+  erase_file();
+  end_trial();
+}
+
+//**************************************************
+//*****************end of main**********************
+//**************************************************
+
+
+
+//***************** start iti **********************
+void iti()
+{
+  set_timer(ITI);
+  while(timer_expired()==0); 
+  store_event(10);             //end ITI
+}
+
+
+//****************asks for bar grab*****************
+void bar_grab()
+{
+  bar=0;
+  fix=0;
+  KOND=BLOCKget_cond_num(); //Mprintf(2,"condition: %i\n",KOND);
+  
+            if(KOND==101)     {Mprintf(2,"code: %i\n",209);}    
+            if(KOND==102)     {Mprintf(2,"code: %i\n",209);}  
+            if(KOND==103)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==104)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==105)     {Mprintf(2,"code: %i\n",209);}    
+            if(KOND==106)     {Mprintf(2,"code: %i\n",209);}  
+            if(KOND==107)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==108)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==109)     {Mprintf(2,"code: %i\n",209);}    
+            if(KOND==110)     {Mprintf(2,"code: %i\n",209);}  
+            if(KOND==111)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==112)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==113)     {Mprintf(2,"code: %i\n",208);}    
+            if(KOND==114)     {Mprintf(2,"code: %i\n",208);}  
+            if(KOND==115)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==116)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==117)     {Mprintf(2,"code: %i\n",208);}    
+            if(KOND==118)     {Mprintf(2,"code: %i\n",208);}  
+            if(KOND==119)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==120)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==121)     {Mprintf(2,"code: %i\n",208);}    
+            if(KOND==122)     {Mprintf(2,"code: %i\n",208);}  
+            if(KOND==123)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==124)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==125)     {Mprintf(2,"code: %i\n",207);}    
+            if(KOND==126)     {Mprintf(2,"code: %i\n",207);}  
+            if(KOND==127)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==128)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==129)     {Mprintf(2,"code: %i\n",207);}    
+            if(KOND==130)     {Mprintf(2,"code: %i\n",207);}  
+            if(KOND==131)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==132)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==133)     {Mprintf(2,"code: %i\n",207);}    
+            if(KOND==134)     {Mprintf(2,"code: %i\n",207);}  
+            if(KOND==135)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==136)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==137)     {Mprintf(2,"code: %i\n",206);}    
+            if(KOND==138)     {Mprintf(2,"code: %i\n",206);}  
+            if(KOND==139)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==140)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==141)     {Mprintf(2,"code: %i\n",206);}    
+            if(KOND==142)     {Mprintf(2,"code: %i\n",206);}  
+            if(KOND==143)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==144)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==145)     {Mprintf(2,"code: %i\n",206);}    
+            if(KOND==146)     {Mprintf(2,"code: %i\n",206);}  
+            if(KOND==147)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==148)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==149)     {Mprintf(2,"code: %i\n",205);}    
+            if(KOND==150)     {Mprintf(2,"code: %i\n",205);}  
+            if(KOND==151)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==152)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==153)     {Mprintf(2,"code: %i\n",205);}    
+            if(KOND==154)     {Mprintf(2,"code: %i\n",205);}  
+            if(KOND==155)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==156)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==157)     {Mprintf(2,"code: %i\n",205);}    
+            if(KOND==158)     {Mprintf(2,"code: %i\n",205);}  
+            if(KOND==159)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==160)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==161)     {Mprintf(2,"code: %i\n",204);}    
+            if(KOND==162)     {Mprintf(2,"code: %i\n",204);}  
+            if(KOND==163)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==164)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==165)     {Mprintf(2,"code: %i\n",204);}    
+            if(KOND==166)     {Mprintf(2,"code: %i\n",204);}  
+            if(KOND==167)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==168)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==169)     {Mprintf(2,"code: %i\n",204);}    
+            if(KOND==170)     {Mprintf(2,"code: %i\n",204);}  
+            if(KOND==171)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==172)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==173)     {Mprintf(2,"code: %i\n",203);}    
+            if(KOND==174)     {Mprintf(2,"code: %i\n",203);}  
+            if(KOND==175)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==176)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==177)     {Mprintf(2,"code: %i\n",203);}    
+            if(KOND==178)     {Mprintf(2,"code: %i\n",203);}  
+            if(KOND==179)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==180)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==181)     {Mprintf(2,"code: %i\n",203);}    
+            if(KOND==182)     {Mprintf(2,"code: %i\n",203);}  
+            if(KOND==183)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==184)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==185)     {Mprintf(2,"code: %i\n",202);}    
+            if(KOND==186)     {Mprintf(2,"code: %i\n",202);}  
+            if(KOND==187)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==188)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==189)     {Mprintf(2,"code: %i\n",202);}    
+            if(KOND==190)     {Mprintf(2,"code: %i\n",202);}  
+            if(KOND==191)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==192)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==193)     {Mprintf(2,"code: %i\n",202);}    
+            if(KOND==194)     {Mprintf(2,"code: %i\n",202);}  
+            if(KOND==195)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==196)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==197)     {Mprintf(2,"code: %i\n",201);}    
+            if(KOND==198)     {Mprintf(2,"code: %i\n",201);}  
+            if(KOND==199)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==200)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==201)     {Mprintf(2,"code: %i\n",201);}    
+            if(KOND==202)     {Mprintf(2,"code: %i\n",201);}  
+            if(KOND==203)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==204)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==205)     {Mprintf(2,"code: %i\n",201);}    
+            if(KOND==206)     {Mprintf(2,"code: %i\n",201);}  
+            if(KOND==207)     {Mprintf(2,"code: %i\n",200);}    
+            if(KOND==208)     {Mprintf(2,"code: %i\n",200);} 
+
+
+
+  set_timer(WAIT_FOR_BAR_GRAB);
+  while(timer_expired()==0)
+	{
+	if(get_bar_state()==1)
+		{      
+		 bar=1;
+             store_event(7);        //bar down
+		 break;
+		}
+	}
+
+  switch(bar)
+ 	{
+  	case 0:
+     		response_no_bar_down(0);    //bar up
+	 	break;
+  	case 1:
+      	start_fixation();
+	 	break;
+ 	}
+}
+
+
+//*****************asks for fixation****************
+void start_fixation()
+{
+  EOGfixwin_size_x = FIX_WINDOW;
+  EOGfixwin_size_y = FIX_WINDOW;
+
+  Gon_off(TEST0,ON);                    
+  Gflush(1);
+  display_eye_path(1);
+
+  display_fixspot(1);
+  store_event(35);                    	//fix-spot on
+  histogram_tik();
+
+  set_timer(WAIT_FOR_FIX);
+  store_event(11);				//start wait for fixation
+  while(timer_expired()==0)
+	{
+   	if(get_fixation_state()==1 && get_bar_state()==1)
+		{
+	 	MS_TIMERset(1,200);           //for 200 ms allowed to enter and leave fixbox
+	 	while(MS_TIMERcheck(1) > 0);
+	 	if(get_fixation_state()==1 && get_bar_state()==1)
+			{
+		 	fix=1;
+		 	bar=1;
+		 	histogram_tik();
+		 	store_event(8);		//fixation occurs
+		 	break;
+		 	}
+		}
+ 	}
+  switch(fix)
+	{
+  	case 0: 
+		store_event(12);		//end wait fixation
+	 	no_fixation();
+	 	display_fixspot(0);
+	 	store_event(36);		//fix-spot off
+	 	fix=0;
+		bar=0;
+	 	clr_screen();
+	 	Gflush(1);
+	 	break;
+	case 1:
+		fix=1;
+	 	bar=1;
+	 	pre_sample();           //jump to next function 
+	 	break;
+ 	}
+}
+
+
+//*******************pre_sample for pure fixation*****************
+void pre_sample()
+{
+  Gpurge();
+  Gon_off(TEST0,ON);    			//background circle           
+  Gflush(1);
+  store_event(15);				//start pre-trial
+
+  set_timer(PRE_TIME);
+  while(timer_expired()==0)
+ 	{
+    	if(get_fixation_state() == 0 || get_bar_state()==0)
+		{		 
+		fix=0;
+		bar=0;
+		break;
+		}       
+	}     
+  store_event(16);			//end pre-trial
+  switch(bar)
+ 	{
+  	case 0:
+		bad_fixation();
+	 	break;
+	case 1:
+		sample();
+		break;
+ 	}
+}
+
+//*******************sample *****************
+void sample()
+{
+
+  clr_screen();
+  Gon_off(TEST1,ON);
+  Gflush(1);
+  store_event(23);      //turn sample on
+
+  set_timer(SAMPLE);
+  while(timer_expired()==0)
+        {
+        if(get_fixation_state()==0 || get_bar_state()==0)
+                {                
+                fix=0;
+                bar=0;
+                break;
+                }       
+        }
+  store_event(24);      //turn sample off
+
+  switch(bar)
+  	{
+  	case 0:
+      	bad_fixation();
+         	clr_screen();
+         	Gflush(1);        
+	   	break;
+  	case 1:
+            delay(); 	 
+            break;
+ 	}
+}
+
+
+//*******************delay period *******************
+void delay()
+{
+  clr_screen();
+
+  Gon_off(TEST0,ON);
+  Gflush(1);
+  store_event(33);				//delay on
+
+  set_timer(DELAY);
+  while(timer_expired()==0)
+ 	{
+       if(get_fixation_state()==0 || get_bar_state()==0)
+		{
+		fix=0;
+		bar=0;
+		break;
+		}              
+	}     					//delay off
+  store_event(34);	//Delay off 
+  switch(bar)
+  	{
+  	case 0:
+      	bad_fixation();
+         	clr_screen();
+         	Gflush(1);        
+	   	break;
+  	case 1:
+		fix=1;
+	   	bar=1;
+  		EOGfixwin_size_x = 20.0;
+		EOGfixwin_size_y = 20.0;
+
+		//display_fixspot(0);
+		KOND=BLOCKget_cond_num(); 
+  		//printf("condition: %i\n",KOND);
+
+            if(KOND==101)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==102)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==103)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==104)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==105)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==106)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==107)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==108)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==109)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==110)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==111)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==112)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==113)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==114)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==115)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==116)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==117)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==118)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==119)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==120)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==121)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==122)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==123)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==124)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==125)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==126)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==127)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==128)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==129)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==130)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==131)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==132)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==133)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==134)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==135)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==136)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==137)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==138)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==139)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==140)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==141)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==142)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==143)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==144)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==145)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==146)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==147)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==148)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==149)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==150)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==151)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==152)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==153)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==154)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==155)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==156)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==157)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==158)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==159)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==160)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==161)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==162)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==163)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==164)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==165)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==166)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==167)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==168)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==169)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==170)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==171)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==172)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==173)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==174)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==175)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==176)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==177)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==178)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==179)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==180)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==181)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==182)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==183)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==184)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==185)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==186)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==187)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==188)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==189)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==190)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==191)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==192)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==193)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==194)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==195)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==196)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==197)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==198)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==199)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==200)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==201)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==202)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==203)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==204)     {tics=TICKSNOSTIM;  non_match();         }    
+            if(KOND==205)     {tics=TICKSSTIM;    match_still_wait();  }    
+            if(KOND==206)     {tics=TICKSSTIM;    non_match();         }  
+            if(KOND==207)     {tics=TICKSNOSTIM;  match_still_wait();  }    
+            if(KOND==208)     {tics=TICKSNOSTIM;  non_match();         }    
+
+
+
+
+		break;
+    }
+}
+
+//*******************non-match comes up =rule to keep holding the bar*****************
+void non_match()
+{
+  clr_screen(); 
+  Gon_off(TEST3,ON);                     
+  Gflush(1);
+  store_event(42);	//Non-Match on
+
+  set_timer(NON_MATCH_TIME);
+  while(timer_expired()==0)
+ 	{
+    	if(get_bar_state()==0)
+		{		 
+		bar=0;
+		break;
+		}       
+ 	}
+  clr_screen();
+  Gon_off(TEST0,ON);                     
+  Gflush(1);
+
+  set_timer(NON_MATCH_WAIT_TIME);
+  while(timer_expired()==0)
+ 	{
+    	if(get_bar_state()==0)
+		{		 
+		bar=0;
+		break;
+		}       
+ 	}
+  store_event(43);	//Non-Match off
+
+  switch(bar)
+ 	{
+  	case 0:
+	 	Falsch();
+	 	time_out_non_match();		
+       	break;
+  	case 1:
+		Richtig();
+	 	break;
+ 	}
+}
+
+
+//******************* match comes up: wait 150 ms!!! = rule to release teh bar *****************
+void match_still_wait()
+{
+  clr_screen(); 
+  Gon_off(TEST4,ON);                  
+  Gflush(1);
+  store_event(40);	//Match on
+
+  set_timer(MATCH_STILL_WAIT_TIME);
+  while(timer_expired()==0)
+ 	{
+    	if(get_bar_state()==0)
+		{		 
+		bar=0;
+		break;
+		}       
+ 	}
+  switch(bar)
+ 	{
+	case 0:
+		Falsch(); 	 		
+	 	break;
+  	case 1:
+	 	match();              
+	 	break;
+ 	}
+}
+
+
+//******************* match asking for response*****************
+void match()
+{
+  clr_screen();
+  Gon_off(TEST4,ON);                  
+  Gflush(1);
+
+  set_timer(MATCH_TIME);
+  while(timer_expired()==0)
+  	{
+  	if(get_bar_state()==0)
+		{		 
+		bar=0;
+		break;
+		}       
+  	}
+  store_event(41);		//Match off
+
+  switch(bar)
+  	{
+  	case 0:
+      	Richtig();
+	 	break;
+	case 1:
+      	last_response();
+		break;
+ 	}
+}
+
+
+//******************* compensating for match_still_wait *****************
+void last_response()
+{
+  clr_screen();               
+  Gflush(1);
+  set_timer(MATCH_STILL_WAIT_TIME);
+  if(get_bar_state()==0)
+	{		 
+	 bar=0;
+	 break;
+	}       
+  store_event(44);	//Last response off 
+  switch(bar)
+  	{
+  	case 0:
+		Richtig();
+	 	break;
+  	case 1:
+	 	Falsch();
+	 	time_out_match();
+	 	break;
+	}
+}
+
+
+//*****************************************************
+void Richtig()
+{
+  display_fixspot(0);
+  KOND=BLOCKget_cond_num();
+  if(KOND==101)      {response_correct(19111);      store_event(209);   store_event(141);   store_event(180); }   
+  if(KOND==102)      {response_correct(19211);      store_event(209);   store_event(241);   store_event(180); }   
+  if(KOND==103)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==104)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==105)      {response_correct(19121);      store_event(209);   store_event(142);   store_event(180); }   
+  if(KOND==106)      {response_correct(19221);      store_event(209);   store_event(242);   store_event(180); }   
+  if(KOND==107)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==108)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==109)      {response_correct(19131);      store_event(209);   store_event(143);   store_event(180); }   
+  if(KOND==110)      {response_correct(19231);      store_event(209);   store_event(243);   store_event(180); }   
+  if(KOND==111)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==112)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==113)      {response_correct(18111);      store_event(208);   store_event(141);   store_event(180); }   
+  if(KOND==114)      {response_correct(18211);      store_event(208);   store_event(241);   store_event(180); }   
+  if(KOND==115)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==116)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==117)      {response_correct(18121);      store_event(208);   store_event(142);   store_event(180); }   
+  if(KOND==118)      {response_correct(18221);      store_event(208);   store_event(242);   store_event(180); }   
+  if(KOND==119)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==120)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==121)      {response_correct(18131);      store_event(208);   store_event(143);   store_event(180); }   
+  if(KOND==122)      {response_correct(18231);      store_event(208);   store_event(243);   store_event(180); }   
+  if(KOND==123)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==124)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==125)      {response_correct(17111);      store_event(207);   store_event(141);   store_event(180); }   
+  if(KOND==126)      {response_correct(17211);      store_event(207);   store_event(241);   store_event(180); }   
+  if(KOND==127)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==128)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==129)      {response_correct(17121);      store_event(207);   store_event(142);   store_event(180); }   
+  if(KOND==130)      {response_correct(17221);      store_event(207);   store_event(242);   store_event(180); }   
+  if(KOND==131)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==132)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==133)      {response_correct(17131);      store_event(207);   store_event(143);   store_event(180); }   
+  if(KOND==134)      {response_correct(17231);      store_event(207);   store_event(243);   store_event(180); }   
+  if(KOND==135)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==136)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==137)      {response_correct(16111);      store_event(206);   store_event(141);   store_event(180); }   
+  if(KOND==138)      {response_correct(16211);      store_event(206);   store_event(241);   store_event(180); }   
+  if(KOND==139)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==140)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==141)      {response_correct(16121);      store_event(206);   store_event(142);   store_event(180); }   
+  if(KOND==142)      {response_correct(16221);      store_event(206);   store_event(242);   store_event(180); }   
+  if(KOND==143)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==144)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==145)      {response_correct(16131);      store_event(206);   store_event(143);   store_event(180); }   
+  if(KOND==146)      {response_correct(16231);      store_event(206);   store_event(243);   store_event(180); }   
+  if(KOND==147)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==148)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==149)      {response_correct(15111);      store_event(205);   store_event(141);   store_event(180); }   
+  if(KOND==150)      {response_correct(15211);      store_event(205);   store_event(241);   store_event(180); }   
+  if(KOND==151)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==152)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==153)      {response_correct(15121);      store_event(205);   store_event(142);   store_event(180); }   
+  if(KOND==154)      {response_correct(15221);      store_event(205);   store_event(242);   store_event(180); }   
+  if(KOND==155)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==156)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==157)      {response_correct(15131);      store_event(205);   store_event(143);   store_event(180); }   
+  if(KOND==158)      {response_correct(15231);      store_event(205);   store_event(243);   store_event(180); }   
+  if(KOND==159)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==160)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==161)      {response_correct(14111);      store_event(204);   store_event(141);   store_event(180); }   
+  if(KOND==162)      {response_correct(14211);      store_event(204);   store_event(241);   store_event(180); }   
+  if(KOND==163)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==164)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==165)      {response_correct(14121);      store_event(204);   store_event(142);   store_event(180); }   
+  if(KOND==166)      {response_correct(14221);      store_event(204);   store_event(242);   store_event(180); }   
+  if(KOND==167)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==168)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==169)      {response_correct(14131);      store_event(204);   store_event(143);   store_event(180); }   
+  if(KOND==170)      {response_correct(14231);      store_event(204);   store_event(243);   store_event(180); }   
+  if(KOND==171)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==172)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==173)      {response_correct(13111);      store_event(203);   store_event(141);   store_event(180); }   
+  if(KOND==174)      {response_correct(13211);      store_event(203);   store_event(241);   store_event(180); }   
+  if(KOND==175)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==176)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==177)      {response_correct(13121);      store_event(203);   store_event(142);   store_event(180); }   
+  if(KOND==178)      {response_correct(13221);      store_event(203);   store_event(242);   store_event(180); }   
+  if(KOND==179)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==180)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==181)      {response_correct(13131);      store_event(203);   store_event(143);   store_event(180); }   
+  if(KOND==182)      {response_correct(13231);      store_event(203);   store_event(243);   store_event(180); }   
+  if(KOND==183)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==184)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==185)      {response_correct(12111);      store_event(202);   store_event(141);   store_event(180); }   
+  if(KOND==186)      {response_correct(12211);      store_event(202);   store_event(241);   store_event(180); }   
+  if(KOND==187)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==188)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==189)      {response_correct(12121);      store_event(202);   store_event(142);   store_event(180); }   
+  if(KOND==190)      {response_correct(12221);      store_event(202);   store_event(242);   store_event(180); }   
+  if(KOND==191)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==192)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==193)      {response_correct(12131);      store_event(202);   store_event(143);   store_event(180); }   
+  if(KOND==194)      {response_correct(12231);      store_event(202);   store_event(243);   store_event(180); }   
+  if(KOND==195)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==196)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==197)      {response_correct(11111);      store_event(201);   store_event(141);   store_event(180); }   
+  if(KOND==198)      {response_correct(11211);      store_event(201);   store_event(241);   store_event(180); }   
+  if(KOND==199)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==200)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==201)      {response_correct(11121);      store_event(201);   store_event(142);   store_event(180); }   
+  if(KOND==202)      {response_correct(11221);      store_event(201);   store_event(242);   store_event(180); }   
+  if(KOND==203)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==204)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+  if(KOND==205)      {response_correct(11131);      store_event(201);   store_event(143);   store_event(180); }   
+  if(KOND==206)      {response_correct(11231);      store_event(201);   store_event(243);   store_event(180); }   
+  if(KOND==207)      {response_correct(10201);      store_event(200);   store_event(240);   store_event(180); }   
+  if(KOND==208)      {response_correct(10101);      store_event(200);   store_event(140);   store_event(180); }   
+
+
+
+  give_reward();        
+  clr_screen();
+  Gflush(1);
+}
+
+
+//*****************************************************
+void give_reward()
+{
+  n = 0;
+  fix=0;
+  bar=0;
+  clr_screen();
+  Gflush(1);
+  store_event(3);			//reward
+  display_eye_path(1);
+  for(n=0;n<tics;n++)
+  	{
+  	set_timer(100);
+  	while(timer_expired()==0);
+  	reward();
+  	}
+  write_rewards();              
+}
+
+
+//*****************************************************
+void write_rewards()
+{
+  plong f2,f1; //f1 for reading, f2 for writing
+  int rew;     //the number of correct responses so far
+  rew = 1;     //in case this is the first correct response
+
+  f1 = fopen("c:\harvey\count.txt","r");  //open file for reading
+  if(f1)                 //if the file already exists
+	{
+   	fseek(f1,0,SEEK_SET);      //position to the beginning of the file
+   	fscanf(f1,"%d",&rew);      //read the file contents
+   	fclose(f1);                //close file
+   	rew++;                     //increment rew
+	}
+
+  //open for writing or create a new file if it does not exist yet
+  f2 = fopen("c:\harvey\count.txt","w+");  
+  fseek(f2,0,SEEK_SET);                  //go to top of file
+  fprintf(f2,"%d",rew);                  //write the value of rew in file
+  fclose(f2);                            //close the file
+  Mprintf(3,"Correct responses: %d\n",rew);
+}
+
+
+//*****************************************************
+void Falsch()
+{
+  display_fixspot(0);
+  KOND=BLOCKget_cond_num();  
+
+  if(KOND==101)      {response_early(19110);      store_event(209); store_event(141);   store_event(181); }   
+  if(KOND==102)      {response_early(19210);      store_event(209); store_event(241);   store_event(181); }   
+  if(KOND==103)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==104)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==105)      {response_early(19120);      store_event(209); store_event(142);   store_event(181); }   
+  if(KOND==106)      {response_early(19220);      store_event(209); store_event(242);   store_event(181); }   
+  if(KOND==107)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==108)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==109)      {response_early(19130);      store_event(209); store_event(143);   store_event(181); }   
+  if(KOND==110)      {response_early(19230);      store_event(209); store_event(243);   store_event(181); }   
+  if(KOND==111)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==112)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==113)      {response_early(18110);      store_event(208); store_event(141);   store_event(181); }   
+  if(KOND==114)      {response_early(18210);      store_event(208); store_event(241);   store_event(181); }   
+  if(KOND==115)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==116)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==117)      {response_early(18120);      store_event(208); store_event(142);   store_event(181); }   
+  if(KOND==118)      {response_early(18220);      store_event(208); store_event(242);   store_event(181); }   
+  if(KOND==119)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==120)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==121)      {response_early(18130);      store_event(208); store_event(143);   store_event(181); }   
+  if(KOND==122)      {response_early(18230);      store_event(208); store_event(243);   store_event(181); }   
+  if(KOND==123)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==124)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==125)      {response_early(17110);      store_event(207); store_event(141);   store_event(181); }   
+  if(KOND==126)      {response_early(17210);      store_event(207); store_event(241);   store_event(181); }   
+  if(KOND==127)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==128)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==129)      {response_early(17120);      store_event(207); store_event(142);   store_event(181); }   
+  if(KOND==130)      {response_early(17220);      store_event(207); store_event(242);   store_event(181); }   
+  if(KOND==131)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==132)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==133)      {response_early(17130);      store_event(207); store_event(143);   store_event(181); }   
+  if(KOND==134)      {response_early(17230);      store_event(207); store_event(243);   store_event(181); }   
+  if(KOND==135)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==136)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==137)      {response_early(16110);      store_event(206); store_event(141);   store_event(181); }   
+  if(KOND==138)      {response_early(16210);      store_event(206); store_event(241);   store_event(181); }   
+  if(KOND==139)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==140)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==141)      {response_early(16120);      store_event(206); store_event(142);   store_event(181); }   
+  if(KOND==142)      {response_early(16220);      store_event(206); store_event(242);   store_event(181); }   
+  if(KOND==143)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==144)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==145)      {response_early(16130);      store_event(206); store_event(143);   store_event(181); }   
+  if(KOND==146)      {response_early(16230);      store_event(206); store_event(243);   store_event(181); }   
+  if(KOND==147)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==148)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==149)      {response_early(15110);      store_event(205); store_event(141);   store_event(181); }   
+  if(KOND==150)      {response_early(15210);      store_event(205); store_event(241);   store_event(181); }   
+  if(KOND==151)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==152)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==153)      {response_early(15120);      store_event(205); store_event(142);   store_event(181); }   
+  if(KOND==154)      {response_early(15220);      store_event(205); store_event(242);   store_event(181); }   
+  if(KOND==155)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==156)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==157)      {response_early(15130);      store_event(205); store_event(143);   store_event(181); }   
+  if(KOND==158)      {response_early(15230);      store_event(205); store_event(243);   store_event(181); }   
+  if(KOND==159)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==160)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==161)      {response_early(14110);      store_event(204); store_event(141);   store_event(181); }   
+  if(KOND==162)      {response_early(14210);      store_event(204); store_event(241);   store_event(181); }   
+  if(KOND==163)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==164)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==165)      {response_early(14120);      store_event(204); store_event(142);   store_event(181); }   
+  if(KOND==166)      {response_early(14220);      store_event(204); store_event(242);   store_event(181); }   
+  if(KOND==167)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==168)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==169)      {response_early(14130);      store_event(204); store_event(143);   store_event(181); }   
+  if(KOND==170)      {response_early(14230);      store_event(204); store_event(243);   store_event(181); }   
+  if(KOND==171)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==172)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==173)      {response_early(13110);      store_event(203); store_event(141);   store_event(181); }   
+  if(KOND==174)      {response_early(13210);      store_event(203); store_event(241);   store_event(181); }   
+  if(KOND==175)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==176)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==177)      {response_early(13120);      store_event(203); store_event(142);   store_event(181); }   
+  if(KOND==178)      {response_early(13220);      store_event(203); store_event(242);   store_event(181); }   
+  if(KOND==179)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==180)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==181)      {response_early(13130);      store_event(203); store_event(143);   store_event(181); }   
+  if(KOND==182)      {response_early(13230);      store_event(203); store_event(243);   store_event(181); }   
+  if(KOND==183)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==184)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==185)      {response_early(12110);      store_event(202); store_event(141);   store_event(181); }   
+  if(KOND==186)      {response_early(12210);      store_event(202); store_event(241);   store_event(181); }   
+  if(KOND==187)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==188)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==189)      {response_early(12120);      store_event(202); store_event(142);   store_event(181); }   
+  if(KOND==190)      {response_early(12220);      store_event(202); store_event(242);   store_event(181); }   
+  if(KOND==191)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==192)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==193)      {response_early(12130);      store_event(202); store_event(143);   store_event(181); }   
+  if(KOND==194)      {response_early(12230);      store_event(202); store_event(243);   store_event(181); }   
+  if(KOND==195)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==196)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==197)      {response_early(11110);      store_event(201); store_event(141);   store_event(181); }   
+  if(KOND==198)      {response_early(11210);      store_event(201); store_event(241);   store_event(181); }   
+  if(KOND==199)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==200)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==201)      {response_early(11120);      store_event(201); store_event(142);   store_event(181); }   
+  if(KOND==202)      {response_early(11220);      store_event(201); store_event(242);   store_event(181); }   
+  if(KOND==203)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==204)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+  if(KOND==205)      {response_early(11130);      store_event(201); store_event(143);   store_event(181); }   
+  if(KOND==206)      {response_early(11230);      store_event(201); store_event(243);   store_event(181); }   
+  if(KOND==207)      {response_early(10200);      store_event(200); store_event(240);   store_event(181); }   
+  if(KOND==208)      {response_early(10100);      store_event(200); store_event(140);   store_event(181); }   
+
+
+ clr_screen();
+  Gflush(1);
+}
+
+
+//*****************************************************
+void bad_fixation()
+{
+  display_fixspot(0);
+  store_event(36);			//fix-spot off
+  break_fixation_error();
+  clr_screen();
+  Gflush(1);
+  fix=0;
+  bar=0;
+
+  //BLOK=BLOCKget_block_num();            //repeat same condition if fixation error
+  //KOND=BLOCKget_cond_num();       
+  //BLOCKset_next(0,KOND); 
+        
+  time_out_fix();
+}
+
+
+//*****************************************************
+void clr_screen()
+{
+  Gon_off(TEST0,OFF);
+  Gon_off(TEST1,OFF);
+  Gon_off(TEST2,OFF);
+  Gon_off(TEST3,OFF);
+  Gon_off(TEST4,OFF);
+  Gon_off(TEST5,OFF);
+  Gon_off(TEST6,OFF);
+  Gon_off(TEST7,OFF);
+  Gon_off(TEST8,OFF);
+  Gon_off(TEST9,OFF);
+}
+
+
+//*****************************************************
+void time_out_match()
+{
+  set_colorABS(0,100,0,0);
+  set_timer(TIME_OUT_MATCH_COLOR);
+  while(timer_expired()==0);
+  set_colorABS(0,0,0,0); 
+  set_timer(TIME_OUT_MATCH);
+  while(timer_expired()==0);
+  erase_file();
+}
+
+//*****************************************************
+void time_out_non_match()
+{
+  set_colorABS(0,100,0,0); 
+  set_timer(TIME_OUT_NON_MATCH_COLOR);
+  while(timer_expired()==0);
+  set_colorABS(0,0,0,0);
+  set_timer(TIME_OUT_NON_MATCH);
+  while(timer_expired()==0);
+  erase_file();
+}
+
+//*****************************************************
+void time_out_fix()
+{
+  set_colorABS(0,100,100,100); 
+  set_timer(TIME_OUT_FIX_COLOR);
+  while(timer_expired()==0);
+  set_colorABS(0,0,0,0);
+  set_timer(0);
+  while(timer_expired()==0);
+  erase_file();
+}
+
+
+//*****************************************************
+void store_event(int code)
+{
+  encode(code);
+  DEVoutp(1,1,code);
+  DEVoutp(1,2,255);
+  MS_TIMERset(20,1);
+  while(MS_TIMERcheck(20)!=0);
+  DEVoutp(1,1,0);
+  DEVoutp(1,2,0);
+  MS_TIMERset(20,1);
+  while(MS_TIMERcheck(20)!=0);
+}
+
+
+//*****************************************************
+void erase_file()
+{
+  pint c;   	//erase the file when a mouse button is pressed
+  if (MousePressed(c))
+        remove("c:\harvey\count.txt");       
+                                             
+  
+//  char c;		//erase the file when "d" is pressed
+//  if(KeyPressed())
+//  		{
+//      	c =(char) GetAKey();
+//      	//  fprintf(stdout,"Key pressed is %d   %c\n",(int) c, c);
+//        	if(c == 'd')
+//            	remove("c:\harvey\count.txt");
+//    	}
+}

@@ -1,0 +1,1998 @@
+/* Delayed match to sample protocol with numerosities         */
+/* Includes fixation blocks.                                  */
+/* Includes correction for response bias (non match errors).  */
+/* Time out screen intensities for right (wall) setup         */
+/*           (contrast 75, brightness 50)                     */
+/*                                                            */
+/* Simon Jacob, 05.04.2012                                    */
+
+
+/**************************************************************/
+/*                           HEADER                           */
+/**************************************************************/
+
+#include "css_inc.h"
+#include "encodes.h"
+
+#define FIX_WINDOW_SMALL       3.50
+#define FIX_WINDOW_LARGE      30.00
+
+#define ITI                    750 /* inter-trial interval */
+
+#define WAIT_FOR_BAR_GRAB   100000
+#define WAIT_FOR_FIX          5000
+#define FIX_ONLY_TIME         3000 /* time to fixate during pure fixation trials */
+#define FIX_TIME               500
+#define SAMPLE_TIME            500
+#define DELAY1_TIME           1000
+#define DISTRACT_TIME          500
+#define DELAY2_TIME           1000
+#define NON_MATCH_TIME        1000
+#define DELAY_MATCH_TIME       100
+#define MATCH_STILL_WAIT_TIME  150 /* time to continue holding bar during match */
+#define MATCH_TIME             850
+#define TOTAL_MATCH_TIME      1000 /* match_time + match_still_wait_time = total match time */
+
+#define TIME_OUT_WRONG        5000
+#define TIME_OUT_EARLY        1250
+#define TIME_OUT_MISSING      1250
+#define TIME_OUT_FIX           500
+
+#define WRONG			 1 /* flags for response errors */
+#define EARLY			 2
+#define MISSING			 3
+
+#define TICS_STD                11
+#define TICS_FIX		 7
+
+int bar;                           /* state variables */
+int fix;
+int fix_time;
+int tics;                          /* number of pulses to the reward system */
+int KOND = 0;                      /* current condition */
+
+void iti();                        /* user-defined functions */
+
+void store_event(int code);
+void clr_screen();
+
+void bar_grab();
+
+void start_fixation();
+void fixation();
+void bad_fixation();
+void time_out_fix();
+
+void sample();
+void delay1();
+void distract();
+void delay2();
+void non_match();
+void delay_match();
+void match_still_wait();
+void match();
+void last_response();
+
+void correct();
+void give_reward();
+void update_reward_count();
+void erase_file();
+
+void mistake(int flag);
+void time_out_mistake(int ms);
+
+void ttl();
+
+
+/**************************************************************/
+/*                           MAIN                             */
+/**************************************************************/
+
+main(){
+	/* store code to mark ITI beginning */
+	/* store three codes to be on the safe side */
+	store_event(START_INTER_TRIAL);		
+	store_event(START_INTER_TRIAL);
+	store_event(START_INTER_TRIAL);       
+
+	iti();
+
+	start_trial(10);
+  	
+	/* start EOG data collection */			
+	put_eye_data_in_buf(1);
+	store_event(START_EYE_DATA);	
+
+	bar_grab();
+   
+	display_eye_path(0);
+ 	
+	/*end EOG data collection*/
+	put_eye_data_in_buf(0);
+	store_event(END_EYE_DATA);		
+	
+	/* store code to mark trial end */
+  	store_event(END_POST_TRIAL);
+  	store_event(END_POST_TRIAL);
+  	store_event(END_POST_TRIAL);
+
+	/* check for mouse click to erase reward count */
+  	erase_file();
+
+  	end_trial();
+}
+
+
+/**************************************************************/
+/*                           ITI                              */
+/**************************************************************/
+
+void iti()
+{
+	MS_TIMERset(1, ITI);
+	while(MS_TIMERcheck(1)!=0);
+	store_event(END_INTER_TRIAL);
+}
+
+
+/**************************************************************/
+/*                           STORE_EVENT                      */
+/**************************************************************/
+
+void store_event(int code)
+{
+	/* store event code to device 1 */
+
+	encode(code);
+	DEVoutp(1,1,code);
+	DEVoutp(1,2,255);
+	MS_TIMERset(20,1);
+	while(MS_TIMERcheck(20)!=0);
+	DEVoutp(1,1,0);
+	DEVoutp(1,2,0);
+	MS_TIMERset(20,1);
+	while(MS_TIMERcheck(20)!=0);
+}
+
+
+/**************************************************************/
+/*                           CLR_SCREEN                       */
+/**************************************************************/
+
+void clr_screen()
+{
+	Gon_off(TEST0,OFF);
+	Gon_off(TEST1,OFF);
+	Gon_off(TEST2,OFF);
+	Gon_off(TEST3,OFF);
+	Gon_off(TEST4,OFF);
+	Gon_off(TEST5,OFF);
+	Gon_off(TEST6,OFF);
+	Gon_off(TEST7,OFF);
+	Gon_off(TEST8,OFF);
+	Gon_off(TEST9,OFF);
+}
+
+
+/**************************************************************/
+/*                           BAR_GRAB                         */
+/**************************************************************/
+
+void bar_grab()
+{
+	bar = 0;
+	fix = 0;
+	KOND = BLOCKget_cond_num();
+	Mprintf(2,"condition: %i\n", KOND);
+
+	/* check for grabbing of bar */
+	MS_TIMERset(1, WAIT_FOR_BAR_GRAB);
+	while(MS_TIMERcheck(1)!=0)
+	{
+		if(get_bar_state()==1)
+		{      
+			bar = 1;
+			store_event(BAR_DOWN);
+		 	break;
+		}
+	}
+
+	switch(bar)
+ 	{
+  		case 0:
+	 	response_no_bar_down(0);       /* response error #8, response code 0 */
+	 	store_event(BAR_UP);
+	 	break;
+  		
+		case 1:
+	 	start_fixation();              /* jump to: start_fixation() */
+	 	break;
+ 	}
+}
+
+
+/**************************************************************/
+/*                           START_FIXATION                   */
+/**************************************************************/
+
+void start_fixation()
+{
+	EOGfixwin_size_x = FIX_WINDOW_SMALL;
+	EOGfixwin_size_y = FIX_WINDOW_SMALL;
+
+	Gon_off(TEST0,ON);                    
+	Gflush(1);
+
+	/* turn fixation spot on */
+        display_fixspot(1);
+        store_event(TURN_FIXSPOT_ON);
+
+ 	MS_TIMERset(1, WAIT_FOR_FIX);
+ 	store_event(START_WAIT_FIXATION);
+ 	while(MS_TIMERcheck(1)!=0)
+ 	{
+  		if(get_fixation_state()==1 && get_bar_state()==1)
+		{
+	 		MS_TIMERset(2,200);            /* allowed to enter and leave fix. box for 200 ms */
+	 		while(MS_TIMERcheck(2)!=0);
+	 		if(get_fixation_state()==1 && get_bar_state()==1)
+			{
+		 		fix=1;
+		 		bar=1;
+		 
+		 		store_event(FIXATION_OCCURS);
+		 		break;
+		 	}
+		}
+ 	}
+
+ 	switch(fix)
+ 	{
+  		case 0:
+		/* no fixation */
+	 	store_event(END_WAIT_FIXATION);
+	 	no_fixation();                    /* response error #4 */
+		
+		/* turn fixation spot off */	 	
+		display_fixspot(0);
+	 	store_event(TURN_FIXSPOT_OFF);
+	 	
+		fix=0;
+	 	bar=0;
+	 	clr_screen();
+	 	Gflush(1);
+	 	break;
+	 
+  		case 1:
+		/* achieved fixation */
+	 	fix=1;
+		bar=1;
+	 	fixation();                       /* jump to: fixation() */
+	 	break;
+ 	}
+}
+
+
+/**************************************************************/
+/*                           FIXATION                         */
+/**************************************************************/
+
+void fixation()
+{
+	KOND = BLOCKget_cond_num();
+
+	/* test for pure fixation trial */
+  	if(KOND==99)
+		fix_time = FIX_ONLY_TIME;
+	else
+		fix_time = FIX_TIME;
+	
+	store_event(START_PRE_TRIAL);
+
+ 	MS_TIMERset(1, fix_time);
+ 	while(MS_TIMERcheck(1)!=0)
+ 	{
+    		if(get_fixation_state() == 0 || get_bar_state()==0)
+		{
+			fix = 0;
+			bar = 0;
+			break;
+		}       
+	}
+
+	switch(fix)
+	{
+		case 0:
+		/* lost fixation or released bar */
+		bad_fixation();
+		break;
+
+	 	case 1:
+		fix = 1;
+		bar = 1;
+		store_event(END_PRE_TRIAL);
+
+		if(KOND==99)
+			correct();	    /* jump to: correct() */
+		else
+			sample();           /* jump to: sample() */
+		break;
+	}
+}
+
+
+/**************************************************************/
+/*                           BAD_FIXATION                     */
+/**************************************************************/
+
+void bad_fixation()
+{
+	/* broke fixation or released bar early */
+
+	/* turn fixation spot off */
+	display_fixspot(0);
+	store_event(TURN_FIXSPOT_OFF);
+	
+	break_fixation_error();         /* response error #3 */
+	
+	clr_screen();
+	Gflush(1);
+	
+	fix=0;
+	bar=0;
+        
+	time_out_fix();
+}
+
+
+/**************************************************************/
+/*                           TIME_OUT_FIX                     */
+/**************************************************************/
+
+void time_out_fix()
+{
+	display_eye_path(1);
+
+	/* show blue screen */
+        set_colorABS(0,0,0,40);
+
+	MS_TIMERset(1, TIME_OUT_FIX);
+	while(MS_TIMERcheck(1)!=0);
+
+	/* change to black again */
+	set_colorABS(0,0,0,0);
+}
+
+
+/**************************************************************/
+/*                           SAMPLE                           */
+/**************************************************************/
+
+void sample()
+{
+	clr_screen();
+        Gon_off(TEST1,ON);                    
+	Gflush(1);
+	store_event(TURN_TEST1_ON);
+
+ 	MS_TIMERset(1, SAMPLE_TIME);
+
+ 	while(MS_TIMERcheck(1)!=0)
+ 	{
+    	if(get_fixation_state()==0 || get_bar_state()==0)
+		{
+			fix = 0;
+			bar = 0;
+			break;
+		}       
+	}
+
+	switch(fix)
+	{
+		case 0:
+		/* lost fixation or released bar */
+		bad_fixation();
+		break;
+
+	 	case 1:
+		fix = 1;
+		bar = 1;
+		store_event(TURN_TEST1_OFF);
+                delay1();                        /* jump to: delay1() */
+		break;
+	}
+}
+
+
+/**************************************************************/
+/*                           DELAY1                           */
+/**************************************************************/
+
+void delay1()
+{
+	clr_screen();
+	/* show blank */
+	Gon_off(TEST0,ON);
+	Gflush(1);
+	store_event(TURN_TEST5_ON);
+
+ 	MS_TIMERset(1, DELAY1_TIME);
+ 	while(MS_TIMERcheck(1)!=0)
+ 	{
+    		if(get_fixation_state()==0 || get_bar_state()==0)
+		{
+			fix = 0;
+			bar = 0;
+			break;
+		}       
+	}
+
+ 	switch(fix)
+	{
+		case 0:
+		/* broke fixation or released bar */
+		bad_fixation();
+		break;
+
+	 	case 1:
+		fix = 1;
+		bar = 1;
+		store_event(TURN_TEST5_OFF);
+		distract();				/* jump to: distract() */
+		break; 	  
+	}
+}
+
+
+/**************************************************************/
+/*                           DISTRACT                         */
+/**************************************************************/
+
+void distract()
+{
+	clr_screen();
+        Gon_off(TEST2,ON);                    
+	Gflush(1);
+	store_event(TURN_TEST2_ON);
+
+ 	MS_TIMERset(1, DISTRACT_TIME);
+
+ 	while(MS_TIMERcheck(1)!=0)
+ 	{
+    	if(get_fixation_state()==0 || get_bar_state()==0)
+		{
+			fix = 0;
+			bar = 0;
+			break;
+		}       
+	}
+
+	switch(fix)
+	{
+		case 0:
+		/* lost fixation or released bar */
+		bad_fixation();
+		break;
+
+	 	case 1:
+		fix = 1;
+		bar = 1;
+		store_event(TURN_TEST2_OFF);
+                delay2();                        /* jump to: delay2() */
+		break;
+	}
+}
+
+
+/**************************************************************/
+/*                           DELAY2                           */
+/**************************************************************/
+
+void delay2()
+{
+	clr_screen();
+	/* show blank */
+	Gon_off(TEST0,ON);
+	Gflush(1);
+	store_event(TURN_TEST6_ON);
+
+        MS_TIMERset(1, DELAY2_TIME);
+ 	while(MS_TIMERcheck(1)!=0)
+ 	{
+    		if(get_fixation_state()==0 || get_bar_state()==0)
+		{
+			fix = 0;
+			bar = 0;
+			break;
+		}       
+	}
+
+ 	switch(fix)
+	{
+		case 0:
+		/* broke fixation or released bar */
+		bad_fixation();
+		break;
+
+	 	case 1:
+		fix = 1;
+		bar = 1;
+		store_event(TURN_TEST6_OFF);
+
+		/* relax fixation window */
+		EOGfixwin_size_x = FIX_WINDOW_LARGE;
+                EOGfixwin_size_y = FIX_WINDOW_LARGE;
+                display_fixspot(0);
+
+                KOND = BLOCKget_cond_num();
+
+		/* standard stimuli */
+		if(KOND > 100 && KOND < 116)     {match_still_wait();}
+		if(KOND > 115 && KOND < 131)     {non_match();}
+
+		if(KOND > 130 && KOND < 146)     {match_still_wait();}
+		if(KOND > 145 && KOND < 161)     {non_match();}
+
+		if(KOND > 160 && KOND < 176)     {match_still_wait();}
+		if(KOND > 175 && KOND < 191)     {non_match();}
+
+		if(KOND > 190 && KOND < 206)     {match_still_wait();}
+		if(KOND > 205 && KOND < 221)     {non_match();}
+
+		/* control stimuli */
+		if(KOND > 220 && KOND < 236)     {match_still_wait();}
+		if(KOND > 235 && KOND < 251)     {non_match();}
+
+		if(KOND > 250 && KOND < 266)     {match_still_wait();}
+		if(KOND > 265 && KOND < 281)     {non_match();}
+
+		if(KOND > 280 && KOND < 296)     {match_still_wait();}
+		if(KOND > 295 && KOND < 311)     {non_match();}
+
+		if(KOND > 310 && KOND < 326)     {match_still_wait();}
+		if(KOND > 325 && KOND < 341)     {non_match();}
+
+		break; 	  
+	}
+}
+
+
+/**************************************************************/
+/*                           NON_MATCH                        */
+/**************************************************************/
+
+void non_match()
+{
+        clr_screen();
+	/* "non-distractor" cue */
+	Gon_off(TEST9,ON);
+	/* test stimulus */
+	Gon_off(TEST3,ON);                    
+	Gflush(1);
+	store_event(TURN_TEST3_ON);
+
+ 	MS_TIMERset(1, NON_MATCH_TIME);
+	while(MS_TIMERcheck(1)!=0)
+	{
+  		if(get_fixation_state()==0)   
+		{
+			fix = 0;
+			bar = 0;
+			break;
+		} 
+
+  		if(get_bar_state()==0)        
+		{
+			fix = 0;
+			bar = 2;
+			break;
+		}
+	}
+
+	switch(bar)
+	{
+		case 0:
+		/* lost fixation */
+		store_event(TURN_TEST3_OFF);
+		bad_fixation();
+		break;
+
+	 	case 1: 
+                /* correct (still holding bar) */
+		store_event(TURN_TEST3_OFF);		
+		/* delay match stimulus for a short period */
+                delay_match();		        /* jump to: match_still_wait() */
+		break;
+
+	 	case 2:
+		/* error (released bar) */
+		store_event(BAR_UP);
+		store_event(TURN_TEST3_OFF);
+                mistake(WRONG);                 /* jump to: mistake() */
+                time_out_mistake(TIME_OUT_WRONG);
+		break;  
+	}
+}
+
+
+/**************************************************************/
+/*                           DELAY_MATCH                      */
+/**************************************************************/
+
+void delay_match()
+{
+	clr_screen();
+        Gon_off(TEST9,ON);
+	Gon_off(TEST0,ON);
+	Gflush(1);
+ 	MS_TIMERset(1, DELAY_MATCH_TIME);
+ 	while(MS_TIMERcheck(1)!=0)
+ 	{
+		/* only check for bar release, fix window is already relaxed */
+    		if(get_bar_state()==0)
+		{
+			bar = 0;
+			break;
+		}       
+	}
+
+ 	switch(bar)
+	{
+		case 0:
+		/* released bar */
+		store_event(BAR_UP);
+	 	mistake(WRONG);
+                time_out_mistake(TIME_OUT_WRONG);
+		break;
+
+	 	case 1:
+		/* continue */
+		match_still_wait();	  
+		break; 	  
+	}
+}
+
+
+/**************************************************************/
+/*                           MATCH_STILL_WAIT                 */
+/**************************************************************/
+
+void match_still_wait()
+{
+	clr_screen();
+	/* "non-distractor" cue */
+	Gon_off(TEST9,ON);
+	/* match stimulus */
+	Gon_off(TEST4,ON);                  
+	Gflush(1);
+	store_event(TURN_TEST4_ON);
+
+	/* ensure that bar is not released too early */
+	MS_TIMERset(1, MATCH_STILL_WAIT_TIME);
+ 	while(MS_TIMERcheck(1)!=0)
+	{
+		if(get_fixation_state()==0)   
+		{
+			fix = 0;
+			bar = 0;
+			break;
+		} 
+
+  		if(get_bar_state()==0)        
+		{
+			fix = 0;
+			bar = 2;
+			break;
+		}
+	}
+
+	switch(bar)
+	{
+		case 0:
+		/* lost fixation */
+		store_event(TURN_TEST4_OFF);
+		bad_fixation();
+		break;
+
+	 	case 1: 
+	        /* correct (still holding bar) */
+		match();		       /* jump to: match() */
+		break;
+
+	 	case 2:
+		/* error (released bar) */
+		store_event(BAR_UP);
+		store_event(TURN_TEST4_OFF);
+		mistake(EARLY);		       /* jump to: mistake() */
+                time_out_mistake(TIME_OUT_EARLY);
+		break;  
+	}
+}
+
+
+/**************************************************************/
+/*                           MATCH                            */
+/**************************************************************/
+
+void match()
+{
+	MS_TIMERset(1, MATCH_TIME);
+	while(MS_TIMERcheck(1)!=0)
+	{
+  		if(get_fixation_state()==0)   
+		{
+			fix = 0;
+			bar = 0;
+			break;
+		} 
+
+		if(get_bar_state()==0)        
+		{
+			fix = 0;
+			bar = 2;
+			break;
+		}
+ 	}
+
+	switch(bar)
+	{
+		case 0:
+		/* lost fixation */
+                store_event(TURN_TEST4_OFF);
+		bad_fixation();
+		break;
+
+	 	case 1:
+		/* still holding bar */
+                store_event(TURN_TEST4_OFF);     
+		last_response();		  /* jump to: last_response() */
+		break;
+
+	 	case 2:
+		/* correct */
+		store_event(BAR_UP);
+                store_event(TURN_TEST4_OFF);
+                correct();                        /* jump to: correct() */
+		break;  
+	}
+}
+
+
+/**************************************************************/
+/*                           LAST_RESPONSE                    */
+/**************************************************************/
+
+void last_response()
+{
+	clr_screen();
+	/* prolong time window for response to compensate for MATCH_STILL_WAIT_TIME */
+	store_event(TURN_TEST7_ON);
+	
+	MS_TIMERset(1, MATCH_STILL_WAIT_TIME);
+	while(MS_TIMERcheck(1)!=0)
+	{
+  		if(get_fixation_state()==0)   
+		{
+			fix = 0;
+			bar = 0;
+			break;
+		} 
+
+  		if(get_bar_state()==0)        
+		{
+			fix = 0;
+			bar = 2;
+			break;
+		}
+	}
+
+	switch(bar)
+	{
+		case 0:
+		/* lost fixation */
+		store_event(TURN_TEST7_OFF);
+		bad_fixation();
+		break;
+
+	 	case 1:
+		/* mistake (still holding bar) */
+		store_event(TURN_TEST7_OFF);               
+		mistake(MISSING);		   /* jump to: mistake() */
+                time_out_mistake(TIME_OUT_MISSING);
+		break;
+
+	 	case 2:
+		/* correct (released bar just in time) */
+		store_event(BAR_UP);
+                store_event(TURN_TEST7_OFF);  
+		correct();			   /* jump to: correct() */
+		break;  
+	}
+}
+
+
+/**************************************************************/
+/*                           CORRECT                          */
+/**************************************************************/
+
+void correct()
+{
+	/* correct response */
+	display_fixspot(0);
+	store_event(TURN_FIXSPOT_OFF);
+	clr_screen();
+	Gflush(1);
+
+	KOND = BLOCKget_cond_num();
+
+	if(KOND==99)	      {response_correct(999);}	/* pure fixation trial */
+
+	/* response error #0, also store response code */	
+	/* standard stimuli */
+	if(KOND==101)         {response_correct(1010); store_event(110); store_event(200);}     /* match trials */
+	if(KOND==102)         {response_correct(1110); store_event(111); store_event(200);}
+  	if(KOND==103)         {response_correct(1210); store_event(112); store_event(200);}
+  	if(KOND==104)         {response_correct(1310); store_event(113); store_event(200);}
+  	if(KOND==105)         {response_correct(1410); store_event(114); store_event(200);}
+
+	if(KOND==106)         {response_correct(1010); store_event(110); store_event(200);}
+	if(KOND==107)         {response_correct(1110); store_event(111); store_event(200);}
+	if(KOND==108)         {response_correct(1210); store_event(112); store_event(200);}
+  	if(KOND==109)         {response_correct(1310); store_event(113); store_event(200);}
+  	if(KOND==110)         {response_correct(1410); store_event(114); store_event(200);}
+
+  	if(KOND==111)         {response_correct(1010); store_event(110); store_event(200);}
+	if(KOND==112)         {response_correct(1110); store_event(111); store_event(200);}
+	if(KOND==113)         {response_correct(1210); store_event(112); store_event(200);}
+	if(KOND==114)         {response_correct(1310); store_event(113); store_event(200);}
+  	if(KOND==115)         {response_correct(1410); store_event(114); store_event(200);}
+  	
+    	if(KOND==116)         {response_correct(1020); store_event(110); store_event(200);}     /* non-match trials */	
+  	if(KOND==117)         {response_correct(1120); store_event(111); store_event(200);}
+	if(KOND==118)         {response_correct(1220); store_event(112); store_event(200);}
+	if(KOND==119)         {response_correct(1320); store_event(113); store_event(200);}
+	if(KOND==120)         {response_correct(1420); store_event(114); store_event(200);}
+
+  	if(KOND==121)         {response_correct(1030); store_event(110); store_event(200);}
+  	if(KOND==122)         {response_correct(1130); store_event(111); store_event(200);}
+  	if(KOND==123)         {response_correct(1230); store_event(112); store_event(200);}
+	if(KOND==124)         {response_correct(1330); store_event(113); store_event(200);}
+	if(KOND==125)         {response_correct(1430); store_event(114); store_event(200);}
+
+	if(KOND==126)         {response_correct(1040); store_event(110); store_event(200);}
+  	if(KOND==127)         {response_correct(1140); store_event(111); store_event(200);}
+  	if(KOND==128)         {response_correct(1240); store_event(112); store_event(200);}
+  	if(KOND==129)         {response_correct(1340); store_event(113); store_event(200);}
+	if(KOND==130)         {response_correct(1440); store_event(114); store_event(200);}
+
+    	if(KOND==131)         {response_correct(2020); store_event(120); store_event(200);}		/* match trials */
+	if(KOND==132)         {response_correct(2120); store_event(121); store_event(200);}
+  	if(KOND==133)         {response_correct(2220); store_event(122); store_event(200);}  
+  	if(KOND==134)         {response_correct(2320); store_event(123); store_event(200);}
+  	if(KOND==135)         {response_correct(2420); store_event(124); store_event(200);}
+                                                       
+	if(KOND==136)         {response_correct(2020); store_event(120); store_event(200);}
+	if(KOND==137)         {response_correct(2120); store_event(121); store_event(200);}
+	if(KOND==138)         {response_correct(2220); store_event(122); store_event(200);}
+  	if(KOND==139)         {response_correct(2320); store_event(123); store_event(200);}  
+  	if(KOND==140)         {response_correct(2420); store_event(124); store_event(200);}
+	                                               
+  	if(KOND==141)         {response_correct(2020); store_event(120); store_event(200);}
+	if(KOND==142)         {response_correct(2120); store_event(121); store_event(200);}
+	if(KOND==143)         {response_correct(2220); store_event(122); store_event(200);}
+	if(KOND==144)         {response_correct(2320); store_event(123); store_event(200);}
+  	if(KOND==145)         {response_correct(2420); store_event(124); store_event(200);}
+	                                               
+  	if(KOND==146)         {response_correct(2010); store_event(120); store_event(200);}		/* non-match trials */	
+  	if(KOND==147)         {response_correct(2110); store_event(121); store_event(200);}	
+	if(KOND==148)         {response_correct(2210); store_event(122); store_event(200);}
+	if(KOND==149)         {response_correct(2310); store_event(123); store_event(200);}
+	if(KOND==150)         {response_correct(2410); store_event(124); store_event(200);}
+                                                       
+  	if(KOND==151)         {response_correct(2030); store_event(120); store_event(200);} 
+  	if(KOND==152)         {response_correct(2130); store_event(121); store_event(200);}
+  	if(KOND==153)         {response_correct(2230); store_event(122); store_event(200);}
+	if(KOND==154)         {response_correct(2330); store_event(123); store_event(200);}
+	if(KOND==155)         {response_correct(2430); store_event(124); store_event(200);}
+                                                       
+	if(KOND==156)         {response_correct(2040); store_event(120); store_event(200);}
+  	if(KOND==157)         {response_correct(2140); store_event(121); store_event(200);} 
+  	if(KOND==158)         {response_correct(2240); store_event(122); store_event(200);}
+  	if(KOND==159)         {response_correct(2340); store_event(123); store_event(200);}
+	if(KOND==160)         {response_correct(2440); store_event(124); store_event(200);}
+
+	if(KOND==161)         {response_correct(3030); store_event(130); store_event(200);}		/* match trials */
+	if(KOND==162)         {response_correct(3130); store_event(131); store_event(200);}
+  	if(KOND==163)         {response_correct(3230); store_event(132); store_event(200);}  
+  	if(KOND==164)         {response_correct(3330); store_event(133); store_event(200);}
+  	if(KOND==165)         {response_correct(3430); store_event(134); store_event(200);}
+                                                       
+	if(KOND==166)         {response_correct(3030); store_event(130); store_event(200);}
+	if(KOND==167)         {response_correct(3130); store_event(131); store_event(200);}
+	if(KOND==168)         {response_correct(3230); store_event(132); store_event(200);}
+  	if(KOND==169)         {response_correct(3330); store_event(133); store_event(200);}
+  	if(KOND==170)         {response_correct(3430); store_event(134); store_event(200);}
+	                                               
+  	if(KOND==171)         {response_correct(3030); store_event(130); store_event(200);}
+	if(KOND==172)         {response_correct(3130); store_event(131); store_event(200);}
+	if(KOND==173)         {response_correct(3230); store_event(132); store_event(200);}
+	if(KOND==174)         {response_correct(3330); store_event(133); store_event(200);}
+  	if(KOND==175)         {response_correct(3430); store_event(134); store_event(200);}
+	                                               
+  	if(KOND==176)         {response_correct(3010); store_event(130); store_event(200);}		/* non-match trials */
+  	if(KOND==177)         {response_correct(3110); store_event(131); store_event(200);}
+	if(KOND==178)         {response_correct(3210); store_event(132); store_event(200);}
+	if(KOND==179)         {response_correct(3310); store_event(133); store_event(200);}
+	if(KOND==180)         {response_correct(3410); store_event(134); store_event(200);}
+                                                       
+  	if(KOND==181)         {response_correct(3020); store_event(130); store_event(200);}  
+  	if(KOND==182)         {response_correct(3120); store_event(131); store_event(200);}
+  	if(KOND==183)         {response_correct(3220); store_event(132); store_event(200);}
+	if(KOND==184)         {response_correct(3320); store_event(133); store_event(200);}
+	if(KOND==185)         {response_correct(3420); store_event(134); store_event(200);}
+                                                       
+	if(KOND==186)         {response_correct(3040); store_event(130); store_event(200);}
+  	if(KOND==187)         {response_correct(3140); store_event(131); store_event(200);}
+  	if(KOND==188)         {response_correct(3240); store_event(132); store_event(200);}
+  	if(KOND==189)         {response_correct(3340); store_event(133); store_event(200);}
+	if(KOND==190)         {response_correct(3440); store_event(134); store_event(200);}
+
+	if(KOND==191)         {response_correct(4040); store_event(140); store_event(200);}		/* match trials */
+	if(KOND==192)         {response_correct(4140); store_event(141); store_event(200);}
+  	if(KOND==193)         {response_correct(4240); store_event(142); store_event(200);}  
+  	if(KOND==194)         {response_correct(4340); store_event(143); store_event(200);}
+  	if(KOND==195)         {response_correct(4440); store_event(144); store_event(200);}			
+                                                       
+  	if(KOND==196)         {response_correct(4040); store_event(140); store_event(200);}
+	if(KOND==197)         {response_correct(4140); store_event(141); store_event(200);}
+	if(KOND==198)         {response_correct(4240); store_event(142); store_event(200);}
+  	if(KOND==199)         {response_correct(4340); store_event(143); store_event(200);}
+  	if(KOND==200)         {response_correct(4440); store_event(144); store_event(200);}
+                                                       
+  	if(KOND==201)         {response_correct(4040); store_event(140); store_event(200);}
+	if(KOND==202)         {response_correct(4140); store_event(141); store_event(200);}
+	if(KOND==203)         {response_correct(4240); store_event(142); store_event(200);}
+	if(KOND==204)         {response_correct(4340); store_event(143); store_event(200);}
+  	if(KOND==205)         {response_correct(4440); store_event(144); store_event(200);}
+	                                               
+  	if(KOND==206)         {response_correct(4010); store_event(140); store_event(200);}		/* non-match trials */
+  	if(KOND==207)         {response_correct(4110); store_event(141); store_event(200);}
+	if(KOND==208)         {response_correct(4210); store_event(142); store_event(200);}
+	if(KOND==209)         {response_correct(4310); store_event(143); store_event(200);}
+	if(KOND==210)         {response_correct(4410); store_event(144); store_event(200);}
+                                                       
+  	if(KOND==211)         {response_correct(4020); store_event(140); store_event(200);}
+  	if(KOND==212)         {response_correct(4120); store_event(141); store_event(200);}
+  	if(KOND==213)         {response_correct(4220); store_event(142); store_event(200);}
+	if(KOND==214)         {response_correct(4320); store_event(143); store_event(200);}
+	if(KOND==215)         {response_correct(4420); store_event(144); store_event(200);}
+                                                       
+	if(KOND==216)         {response_correct(4030); store_event(140); store_event(200);}
+  	if(KOND==217)         {response_correct(4130); store_event(141); store_event(200);}  
+  	if(KOND==218)         {response_correct(4230); store_event(142); store_event(200);}
+  	if(KOND==219)         {response_correct(4330); store_event(143); store_event(200);}
+	if(KOND==220)         {response_correct(4430); store_event(144); store_event(200);}
+
+	/* control stimuli */
+    	if(KOND==221)         {response_correct(1011); store_event(150); store_event(200);}		/* match trials */
+	if(KOND==222)         {response_correct(1111); store_event(155); store_event(200);}
+  	if(KOND==223)         {response_correct(1211); store_event(156); store_event(200);}
+  	if(KOND==224)         {response_correct(1311); store_event(157); store_event(200);}
+  	if(KOND==225)         {response_correct(1411); store_event(158); store_event(200);}
+                                                       
+	if(KOND==226)         {response_correct(1011); store_event(150); store_event(200);}
+	if(KOND==227)         {response_correct(1111); store_event(155); store_event(200);}
+	if(KOND==228)         {response_correct(1211); store_event(156); store_event(200);}
+  	if(KOND==229)         {response_correct(1311); store_event(157); store_event(200);}	  
+  	if(KOND==230)         {response_correct(1411); store_event(158); store_event(200);}
+                                                       
+  	if(KOND==231)         {response_correct(1011); store_event(150); store_event(200);}                                                      
+	if(KOND==232)         {response_correct(1111); store_event(155); store_event(200);}
+	if(KOND==233)         {response_correct(1211); store_event(156); store_event(200);}
+	if(KOND==234)         {response_correct(1311); store_event(157); store_event(200);}
+  	if(KOND==235)         {response_correct(1411); store_event(158); store_event(200);}
+	                                               
+  	if(KOND==236)         {response_correct(1021); store_event(150); store_event(200);}		/* non-match trials */	
+  	if(KOND==237)         {response_correct(1121); store_event(155); store_event(200);}                                                       
+	if(KOND==238)         {response_correct(1221); store_event(156); store_event(200);}
+	if(KOND==239)         {response_correct(1321); store_event(157); store_event(200);}
+	if(KOND==240)         {response_correct(1421); store_event(158); store_event(200);}
+                                                       
+  	if(KOND==241)         {response_correct(1031); store_event(150); store_event(200);}  
+  	if(KOND==242)         {response_correct(1131); store_event(155); store_event(200);}
+  	if(KOND==243)         {response_correct(1231); store_event(156); store_event(200);}
+	if(KOND==244)         {response_correct(1331); store_event(157); store_event(200);}
+	if(KOND==245)         {response_correct(1431); store_event(158); store_event(200);}
+                                                       
+	if(KOND==246)         {response_correct(1041); store_event(150); store_event(200);}
+  	if(KOND==247)         {response_correct(1141); store_event(155); store_event(200);}  
+  	if(KOND==248)         {response_correct(1241); store_event(156); store_event(200);}
+  	if(KOND==249)         {response_correct(1341); store_event(157); store_event(200);}                                                       
+	if(KOND==250)         {response_correct(1441); store_event(158); store_event(200);}
+                                                       
+	if(KOND==251)         {response_correct(2021); store_event(160); store_event(200);}		/* match trials */
+	if(KOND==252)         {response_correct(2121); store_event(165); store_event(200);}
+  	if(KOND==253)         {response_correct(2221); store_event(166); store_event(200);}  
+  	if(KOND==254)         {response_correct(2321); store_event(167); store_event(200);}
+  	if(KOND==255)         {response_correct(2421); store_event(168); store_event(200);}
+                                                       
+	if(KOND==256)         {response_correct(2021); store_event(160); store_event(200);}
+	if(KOND==257)         {response_correct(2121); store_event(165); store_event(200);}
+	if(KOND==258)         {response_correct(2221); store_event(166); store_event(200);}
+  	if(KOND==259)         {response_correct(2321); store_event(167); store_event(200);} 
+  	if(KOND==260)         {response_correct(2421); store_event(168); store_event(200);}
+	                                               
+  	if(KOND==261)         {response_correct(2021); store_event(160); store_event(200);}                                                       
+	if(KOND==262)         {response_correct(2121); store_event(165); store_event(200);}
+	if(KOND==263)         {response_correct(2221); store_event(166); store_event(200);}
+	if(KOND==264)         {response_correct(2321); store_event(167); store_event(200);}
+  	if(KOND==265)         {response_correct(2421); store_event(168); store_event(200);}
+	                                               
+  	if(KOND==266)         {response_correct(2011); store_event(160); store_event(200);}		/* non-match trials */	
+  	if(KOND==267)         {response_correct(2111); store_event(165); store_event(200);}                                                      
+	if(KOND==268)         {response_correct(2211); store_event(166); store_event(200);}
+	if(KOND==269)         {response_correct(2311); store_event(167); store_event(200);}
+	if(KOND==270)         {response_correct(2411); store_event(168); store_event(200);}
+                                                       
+  	if(KOND==271)         {response_correct(2031); store_event(160); store_event(200);}  
+  	if(KOND==272)         {response_correct(2131); store_event(165); store_event(200);}	
+  	if(KOND==273)         {response_correct(2231); store_event(166); store_event(200);}                                                     
+	if(KOND==274)         {response_correct(2331); store_event(167); store_event(200);}
+	if(KOND==275)         {response_correct(2431); store_event(168); store_event(200);}
+                                                       
+	if(KOND==276)         {response_correct(2041); store_event(160); store_event(200);}
+  	if(KOND==277)         {response_correct(2141); store_event(165); store_event(200);}  
+  	if(KOND==278)         {response_correct(2241); store_event(166); store_event(200);}
+  	if(KOND==279)         {response_correct(2341); store_event(167); store_event(200);}                                                   
+	if(KOND==280)         {response_correct(2441); store_event(168); store_event(200);}
+                                                       
+	if(KOND==281)         {response_correct(3031); store_event(170); store_event(200);}		/* match trials */
+	if(KOND==282)         {response_correct(3131); store_event(175); store_event(200);}
+  	if(KOND==283)         {response_correct(3231); store_event(176); store_event(200);}
+  	if(KOND==284)         {response_correct(3331); store_event(177); store_event(200);}
+  	if(KOND==285)         {response_correct(3431); store_event(178); store_event(200);}
+                                                       
+	if(KOND==286)         {response_correct(3031); store_event(170); store_event(200);}
+	if(KOND==287)         {response_correct(3131); store_event(175); store_event(200);}
+	if(KOND==288)         {response_correct(3231); store_event(176); store_event(200);}
+  	if(KOND==289)         {response_correct(3331); store_event(177); store_event(200);}  
+  	if(KOND==290)         {response_correct(3431); store_event(178); store_event(200);}
+	                                               
+  	if(KOND==291)         {response_correct(3031); store_event(170); store_event(200);}
+  	if(KOND==292)         {response_correct(3131); store_event(175); store_event(200);}
+	if(KOND==293)         {response_correct(3231); store_event(176); store_event(200);}
+	if(KOND==294)         {response_correct(3331); store_event(177); store_event(200);}
+  	if(KOND==295)         {response_correct(3431); store_event(178); store_event(200);}
+                                                       
+  	if(KOND==296)         {response_correct(3011); store_event(170); store_event(200);}		/* non-match trials */	
+  	if(KOND==297)         {response_correct(3111); store_event(175); store_event(200);}                                                     
+	if(KOND==298)         {response_correct(3211); store_event(176); store_event(200);}
+	if(KOND==299)         {response_correct(3311); store_event(177); store_event(200);}
+	if(KOND==300)         {response_correct(3411); store_event(178); store_event(200);}
+                                                       
+  	if(KOND==301)         {response_correct(3021); store_event(170); store_event(200);}  
+  	if(KOND==302)         {response_correct(3121); store_event(175); store_event(200);}
+  	if(KOND==303)         {response_correct(3221); store_event(176); store_event(200);}                                                
+	if(KOND==304)         {response_correct(3321); store_event(177); store_event(200);}
+	if(KOND==305)         {response_correct(3421); store_event(178); store_event(200);}
+                                                       
+	if(KOND==306)         {response_correct(3041); store_event(170); store_event(200);}
+  	if(KOND==307)         {response_correct(3141); store_event(175); store_event(200);}
+  	if(KOND==308)         {response_correct(3241); store_event(176); store_event(200);}
+  	if(KOND==309)         {response_correct(3341); store_event(177); store_event(200);}                                                       
+	if(KOND==310)         {response_correct(3441); store_event(178); store_event(200);}
+                                                       
+	if(KOND==311)         {response_correct(4041); store_event(180); store_event(200);}		/* match trials */
+	if(KOND==312)         {response_correct(4141); store_event(185); store_event(200);}
+  	if(KOND==313)         {response_correct(4241); store_event(186); store_event(200);}  
+  	if(KOND==314)         {response_correct(4341); store_event(187); store_event(200);}
+  	if(KOND==315)         {response_correct(4441); store_event(188); store_event(200);}
+                                                       
+	if(KOND==316)         {response_correct(4041); store_event(180); store_event(200);}
+	if(KOND==317)         {response_correct(4141); store_event(185); store_event(200);}
+	if(KOND==318)         {response_correct(4241); store_event(186); store_event(200);}
+  	if(KOND==319)         {response_correct(4341); store_event(187); store_event(200);}  
+  	if(KOND==320)         {response_correct(4441); store_event(188); store_event(200);}
+                                                       
+  	if(KOND==321)         {response_correct(4041); store_event(180); store_event(200);}                                                      
+	if(KOND==322)         {response_correct(4141); store_event(185); store_event(200);}
+	if(KOND==323)         {response_correct(4241); store_event(186); store_event(200);}
+	if(KOND==324)         {response_correct(4341); store_event(187); store_event(200);}
+  	if(KOND==325)         {response_correct(4441); store_event(188); store_event(200);}
+                                                       
+  	if(KOND==326)         {response_correct(4011); store_event(180); store_event(200);}		/* non-match trials */	
+  	if(KOND==327)         {response_correct(4111); store_event(185); store_event(200);}
+	if(KOND==328)         {response_correct(4211); store_event(186); store_event(200);}
+	if(KOND==329)         {response_correct(4311); store_event(187); store_event(200);}
+	if(KOND==330)         {response_correct(4411); store_event(188); store_event(200);}
+                                                       
+  	if(KOND==331)         {response_correct(4021); store_event(180); store_event(200);}  
+  	if(KOND==332)         {response_correct(4121); store_event(185); store_event(200);}
+  	if(KOND==333)         {response_correct(4221); store_event(186); store_event(200);}                                                        
+	if(KOND==334)         {response_correct(4321); store_event(187); store_event(200);}
+	if(KOND==335)         {response_correct(4421); store_event(188); store_event(200);}
+                                                       
+	if(KOND==336)         {response_correct(4031); store_event(180); store_event(200);}
+  	if(KOND==337)         {response_correct(4131); store_event(185); store_event(200);}  
+  	if(KOND==338)         {response_correct(4231); store_event(186); store_event(200);}
+  	if(KOND==339)         {response_correct(4331); store_event(187); store_event(200);}                                                      
+	if(KOND==340)         {response_correct(4431); store_event(188); store_event(200);}
+
+	give_reward();
+}
+
+
+/**************************************************************/
+/*                           GIVE_REWARD                      */
+/**************************************************************/
+
+void give_reward()
+{
+	int n = 0;
+	fix=0;
+	bar=0;
+
+	clr_screen();
+	Gflush(1);
+	store_event(REWARD);
+
+  	display_eye_path(1);
+
+        KOND = BLOCKget_cond_num();
+
+	if(KOND==99)
+                tics = TICS_FIX;
+        else
+                tics = TICS_STD;
+
+ 	for(n=0;n<tics;n++)
+  	{
+		/* give one reward pulse every 100 ms */
+  		MS_TIMERset(1, 100);
+  		while(MS_TIMERcheck(1)!=0);
+  		reward();
+  	}
+
+	update_reward_count();
+                
+	store_event(REWARD_GIVEN);
+}
+
+
+/**************************************************************/
+/*                           UPDATE_REWARD_COUNT              */
+/**************************************************************/
+
+void update_reward_count()
+{
+	/* update USER status window with current reward count */
+
+	plong f1, f2;  /* file handles for reading and writing */
+        int rew;       /* number of correct responses so far */
+        rew = 1;       /* initialize to 1 */
+
+	f1 = fopen("c:\rudi\count.txt","r");  /* open file for reading */
+	if(f1)
+	{
+   		fseek(f1,0,SEEK_SET);      /* position to the beginning of the file */
+   		fscanf(f1,"%d",&rew);      /* read the file contents */
+   		fclose(f1);                
+   		rew++;                     /* increment reward count */
+	}
+
+	f2 = fopen("c:\rudi\count.txt","w+");  /* open for writing or create a new file */
+	fseek(f2,0,SEEK_SET);
+	fprintf(f2,"%d",rew);
+	fclose(f2);
+	
+	Mprintf(3,"Correct responses: %d\n",rew); /* update reward count in USER status window*/
+}
+
+
+/**************************************************************/
+/*                           ERASE_FILE                       */
+/**************************************************************/
+
+void erase_file()
+{
+	/* erase the reward count file when a mouse button is pressed */
+
+	pint c;
+	if (MousePressed(c))
+        	remove("c:\rudi\count.txt");
+}
+
+
+/**************************************************************/
+/*                           MISTAKE                          */
+/**************************************************************/
+
+void mistake(int flag)
+{
+	/* error */
+	display_fixspot(0);
+	store_event(TURN_FIXSPOT_OFF);
+	clr_screen();
+	Gflush(1);
+
+	KOND = BLOCKget_cond_num();
+  	
+        switch(flag)
+	{
+	case WRONG:
+	/* bar released during non-match stimulus */
+	/* response error #6, also store response code */
+
+	/* standard stimuli */
+        if(KOND==116)         {response_wrong(1020); store_event(110); store_event(201);}     /* non-match trials */	
+        if(KOND==117)         {response_wrong(1120); store_event(111); store_event(201);}
+        if(KOND==118)         {response_wrong(1220); store_event(112); store_event(201);}
+        if(KOND==119)         {response_wrong(1320); store_event(113); store_event(201);}
+        if(KOND==120)         {response_wrong(1420); store_event(114); store_event(201);}
+
+        if(KOND==121)         {response_wrong(1030); store_event(110); store_event(201);}
+        if(KOND==122)         {response_wrong(1130); store_event(111); store_event(201);}
+        if(KOND==123)         {response_wrong(1230); store_event(112); store_event(201);}
+        if(KOND==124)         {response_wrong(1330); store_event(113); store_event(201);}
+        if(KOND==125)         {response_wrong(1430); store_event(114); store_event(201);}
+
+        if(KOND==126)         {response_wrong(1040); store_event(110); store_event(201);}
+        if(KOND==127)         {response_wrong(1140); store_event(111); store_event(201);}
+        if(KOND==128)         {response_wrong(1240); store_event(112); store_event(201);}
+        if(KOND==129)         {response_wrong(1340); store_event(113); store_event(201);}
+        if(KOND==130)         {response_wrong(1440); store_event(114); store_event(201);}
+
+        if(KOND==146)         {response_wrong(2010); store_event(120); store_event(201);}		/* non-match trials */	
+        if(KOND==147)         {response_wrong(2110); store_event(121); store_event(201);}	
+        if(KOND==148)         {response_wrong(2210); store_event(122); store_event(201);}
+        if(KOND==149)         {response_wrong(2310); store_event(123); store_event(201);}
+        if(KOND==150)         {response_wrong(2410); store_event(124); store_event(201);}
+
+        if(KOND==151)         {response_wrong(2030); store_event(120); store_event(201);} 
+        if(KOND==152)         {response_wrong(2130); store_event(121); store_event(201);}
+        if(KOND==153)         {response_wrong(2230); store_event(122); store_event(201);}
+        if(KOND==154)         {response_wrong(2330); store_event(123); store_event(201);}
+        if(KOND==155)         {response_wrong(2430); store_event(124); store_event(201);}
+
+        if(KOND==156)         {response_wrong(2040); store_event(120); store_event(201);}
+        if(KOND==157)         {response_wrong(2140); store_event(121); store_event(201);} 
+        if(KOND==158)         {response_wrong(2240); store_event(122); store_event(201);}
+        if(KOND==159)         {response_wrong(2340); store_event(123); store_event(201);}
+        if(KOND==160)         {response_wrong(2440); store_event(124); store_event(201);}
+
+        if(KOND==176)         {response_wrong(3010); store_event(130); store_event(201);}		/* non-match trials */
+        if(KOND==177)         {response_wrong(3110); store_event(131); store_event(201);}
+        if(KOND==178)         {response_wrong(3210); store_event(132); store_event(201);}
+        if(KOND==179)         {response_wrong(3310); store_event(133); store_event(201);}
+        if(KOND==180)         {response_wrong(3410); store_event(134); store_event(201);}
+
+        if(KOND==181)         {response_wrong(3020); store_event(130); store_event(201);}  
+        if(KOND==182)         {response_wrong(3120); store_event(131); store_event(201);}
+        if(KOND==183)         {response_wrong(3220); store_event(132); store_event(201);}
+        if(KOND==184)         {response_wrong(3320); store_event(133); store_event(201);}
+        if(KOND==185)         {response_wrong(3420); store_event(134); store_event(201);}
+
+        if(KOND==186)         {response_wrong(3040); store_event(130); store_event(201);}
+        if(KOND==187)         {response_wrong(3140); store_event(131); store_event(201);}
+        if(KOND==188)         {response_wrong(3240); store_event(132); store_event(201);}
+        if(KOND==189)         {response_wrong(3340); store_event(133); store_event(201);}
+        if(KOND==190)         {response_wrong(3440); store_event(134); store_event(201);}
+
+        if(KOND==206)         {response_wrong(4010); store_event(140); store_event(201);}		/* non-match trials */
+        if(KOND==207)         {response_wrong(4110); store_event(141); store_event(201);}
+        if(KOND==208)         {response_wrong(4210); store_event(142); store_event(201);}
+        if(KOND==209)         {response_wrong(4310); store_event(143); store_event(201);}
+        if(KOND==210)         {response_wrong(4410); store_event(144); store_event(201);}
+
+        if(KOND==211)         {response_wrong(4020); store_event(140); store_event(201);}
+        if(KOND==212)         {response_wrong(4120); store_event(141); store_event(201);}
+        if(KOND==213)         {response_wrong(4220); store_event(142); store_event(201);}
+        if(KOND==214)         {response_wrong(4320); store_event(143); store_event(201);}
+        if(KOND==215)         {response_wrong(4420); store_event(144); store_event(201);}
+
+        if(KOND==216)         {response_wrong(4030); store_event(140); store_event(201);}
+        if(KOND==217)         {response_wrong(4130); store_event(141); store_event(201);}  
+        if(KOND==218)         {response_wrong(4230); store_event(142); store_event(201);}
+        if(KOND==219)         {response_wrong(4330); store_event(143); store_event(201);}
+        if(KOND==220)         {response_wrong(4430); store_event(144); store_event(201);}
+
+        /* control stimuli */
+        if(KOND==236)         {response_wrong(1021); store_event(150); store_event(201);}		/* non-match trials */	
+        if(KOND==237)         {response_wrong(1121); store_event(155); store_event(201);}                                                       
+        if(KOND==238)         {response_wrong(1221); store_event(156); store_event(201);}
+        if(KOND==239)         {response_wrong(1321); store_event(157); store_event(201);}
+        if(KOND==240)         {response_wrong(1421); store_event(158); store_event(201);}
+
+        if(KOND==241)         {response_wrong(1031); store_event(150); store_event(201);}  
+        if(KOND==242)         {response_wrong(1131); store_event(155); store_event(201);}
+        if(KOND==243)         {response_wrong(1231); store_event(156); store_event(201);}
+        if(KOND==244)         {response_wrong(1331); store_event(157); store_event(201);}
+        if(KOND==245)         {response_wrong(1431); store_event(158); store_event(201);}
+
+        if(KOND==246)         {response_wrong(1041); store_event(150); store_event(201);}
+        if(KOND==247)         {response_wrong(1141); store_event(155); store_event(201);}  
+        if(KOND==248)         {response_wrong(1241); store_event(156); store_event(201);}
+        if(KOND==249)         {response_wrong(1341); store_event(157); store_event(201);}                                                       
+        if(KOND==250)         {response_wrong(1441); store_event(158); store_event(201);}
+
+        if(KOND==266)         {response_wrong(2011); store_event(160); store_event(201);}		/* non-match trials */	
+        if(KOND==267)         {response_wrong(2111); store_event(165); store_event(201);}                                                      
+        if(KOND==268)         {response_wrong(2211); store_event(166); store_event(201);}
+        if(KOND==269)         {response_wrong(2311); store_event(167); store_event(201);}
+        if(KOND==270)         {response_wrong(2411); store_event(168); store_event(201);}
+
+        if(KOND==271)         {response_wrong(2031); store_event(160); store_event(201);}  
+        if(KOND==272)         {response_wrong(2131); store_event(165); store_event(201);}	
+        if(KOND==273)         {response_wrong(2231); store_event(166); store_event(201);}                                                     
+        if(KOND==274)         {response_wrong(2331); store_event(167); store_event(201);}
+        if(KOND==275)         {response_wrong(2431); store_event(168); store_event(201);}
+
+        if(KOND==276)         {response_wrong(2041); store_event(160); store_event(201);}
+        if(KOND==277)         {response_wrong(2141); store_event(165); store_event(201);}  
+        if(KOND==278)         {response_wrong(2241); store_event(166); store_event(201);}
+        if(KOND==279)         {response_wrong(2341); store_event(167); store_event(201);}                                                   
+        if(KOND==280)         {response_wrong(2441); store_event(168); store_event(201);}
+
+        if(KOND==296)         {response_wrong(3011); store_event(170); store_event(201);}		/* non-match trials */	
+        if(KOND==297)         {response_wrong(3111); store_event(175); store_event(201);}                                                     
+        if(KOND==298)         {response_wrong(3211); store_event(176); store_event(201);}
+        if(KOND==299)         {response_wrong(3311); store_event(177); store_event(201);}
+        if(KOND==300)         {response_wrong(3411); store_event(178); store_event(201);}
+
+        if(KOND==301)         {response_wrong(3021); store_event(170); store_event(201);}  
+        if(KOND==302)         {response_wrong(3121); store_event(175); store_event(201);}
+        if(KOND==303)         {response_wrong(3221); store_event(176); store_event(201);}                                                
+        if(KOND==304)         {response_wrong(3321); store_event(177); store_event(201);}
+        if(KOND==305)         {response_wrong(3421); store_event(178); store_event(201);}
+
+        if(KOND==306)         {response_wrong(3041); store_event(170); store_event(201);}
+        if(KOND==307)         {response_wrong(3141); store_event(175); store_event(201);}
+        if(KOND==308)         {response_wrong(3241); store_event(176); store_event(201);}
+        if(KOND==309)         {response_wrong(3341); store_event(177); store_event(201);}                                                       
+        if(KOND==310)         {response_wrong(3441); store_event(178); store_event(201);}
+
+        if(KOND==326)         {response_wrong(4011); store_event(180); store_event(201);}		/* non-match trials */	
+        if(KOND==327)         {response_wrong(4111); store_event(185); store_event(201);}
+        if(KOND==328)         {response_wrong(4211); store_event(186); store_event(201);}
+        if(KOND==329)         {response_wrong(4311); store_event(187); store_event(201);}
+        if(KOND==330)         {response_wrong(4411); store_event(188); store_event(201);}
+
+        if(KOND==331)         {response_wrong(4021); store_event(180); store_event(201);}  
+        if(KOND==332)         {response_wrong(4121); store_event(185); store_event(201);}
+        if(KOND==333)         {response_wrong(4221); store_event(186); store_event(201);}                                                        
+        if(KOND==334)         {response_wrong(4321); store_event(187); store_event(201);}
+        if(KOND==335)         {response_wrong(4421); store_event(188); store_event(201);}
+
+        if(KOND==336)         {response_wrong(4031); store_event(180); store_event(201);}
+        if(KOND==337)         {response_wrong(4131); store_event(185); store_event(201);}  
+        if(KOND==338)         {response_wrong(4231); store_event(186); store_event(201);}
+        if(KOND==339)         {response_wrong(4331); store_event(187); store_event(201);}                                                      
+        if(KOND==340)         {response_wrong(4431); store_event(188); store_event(201);}
+
+	break;
+
+	case EARLY:
+	/* bar released during MATCH_STILL_WAIT period */
+	/* response error #5, also store response code */
+
+	/* standard stimuli */
+        if(KOND==101)         {response_early(1010); store_event(110); store_event(201);}     /* match trials */
+        if(KOND==102)         {response_early(1110); store_event(111); store_event(201);}
+        if(KOND==103)         {response_early(1210); store_event(112); store_event(201);}
+        if(KOND==104)         {response_early(1310); store_event(113); store_event(201);}
+        if(KOND==105)         {response_early(1410); store_event(114); store_event(201);}
+
+        if(KOND==106)         {response_early(1010); store_event(110); store_event(201);}
+        if(KOND==107)         {response_early(1110); store_event(111); store_event(201);}
+        if(KOND==108)         {response_early(1210); store_event(112); store_event(201);}
+        if(KOND==109)         {response_early(1310); store_event(113); store_event(201);}
+        if(KOND==110)         {response_early(1410); store_event(114); store_event(201);}
+
+        if(KOND==111)         {response_early(1010); store_event(110); store_event(201);}
+        if(KOND==112)         {response_early(1110); store_event(111); store_event(201);}
+        if(KOND==113)         {response_early(1210); store_event(112); store_event(201);}
+        if(KOND==114)         {response_early(1310); store_event(113); store_event(201);}
+        if(KOND==115)         {response_early(1410); store_event(114); store_event(201);}
+
+        if(KOND==116)         {response_early(1020); store_event(110); store_event(201);}     /* non-match trials */	
+        if(KOND==117)         {response_early(1120); store_event(111); store_event(201);}
+        if(KOND==118)         {response_early(1220); store_event(112); store_event(201);}
+        if(KOND==119)         {response_early(1320); store_event(113); store_event(201);}
+        if(KOND==120)         {response_early(1420); store_event(114); store_event(201);}
+
+        if(KOND==121)         {response_early(1030); store_event(110); store_event(201);}
+        if(KOND==122)         {response_early(1130); store_event(111); store_event(201);}
+        if(KOND==123)         {response_early(1230); store_event(112); store_event(201);}
+        if(KOND==124)         {response_early(1330); store_event(113); store_event(201);}
+        if(KOND==125)         {response_early(1430); store_event(114); store_event(201);}
+
+        if(KOND==126)         {response_early(1040); store_event(110); store_event(201);}
+        if(KOND==127)         {response_early(1140); store_event(111); store_event(201);}
+        if(KOND==128)         {response_early(1240); store_event(112); store_event(201);}
+        if(KOND==129)         {response_early(1340); store_event(113); store_event(201);}
+        if(KOND==130)         {response_early(1440); store_event(114); store_event(201);}
+
+        if(KOND==131)         {response_early(2020); store_event(120); store_event(201);}		/* match trials */
+        if(KOND==132)         {response_early(2120); store_event(121); store_event(201);}
+        if(KOND==133)         {response_early(2220); store_event(122); store_event(201);}  
+        if(KOND==134)         {response_early(2320); store_event(123); store_event(201);}
+        if(KOND==135)         {response_early(2420); store_event(124); store_event(201);}
+
+        if(KOND==136)         {response_early(2020); store_event(120); store_event(201);}
+        if(KOND==137)         {response_early(2120); store_event(121); store_event(201);}
+        if(KOND==138)         {response_early(2220); store_event(122); store_event(201);}
+        if(KOND==139)         {response_early(2320); store_event(123); store_event(201);}  
+        if(KOND==140)         {response_early(2420); store_event(124); store_event(201);}
+
+        if(KOND==141)         {response_early(2020); store_event(120); store_event(201);}
+        if(KOND==142)         {response_early(2120); store_event(121); store_event(201);}
+        if(KOND==143)         {response_early(2220); store_event(122); store_event(201);}
+        if(KOND==144)         {response_early(2320); store_event(123); store_event(201);}
+        if(KOND==145)         {response_early(2420); store_event(124); store_event(201);}
+
+        if(KOND==146)         {response_early(2010); store_event(120); store_event(201);}		/* non-match trials */	
+        if(KOND==147)         {response_early(2110); store_event(121); store_event(201);}	
+        if(KOND==148)         {response_early(2210); store_event(122); store_event(201);}
+        if(KOND==149)         {response_early(2310); store_event(123); store_event(201);}
+        if(KOND==150)         {response_early(2410); store_event(124); store_event(201);}
+
+        if(KOND==151)         {response_early(2030); store_event(120); store_event(201);} 
+        if(KOND==152)         {response_early(2130); store_event(121); store_event(201);}
+        if(KOND==153)         {response_early(2230); store_event(122); store_event(201);}
+        if(KOND==154)         {response_early(2330); store_event(123); store_event(201);}
+        if(KOND==155)         {response_early(2430); store_event(124); store_event(201);}
+
+        if(KOND==156)         {response_early(2040); store_event(120); store_event(201);}
+        if(KOND==157)         {response_early(2140); store_event(121); store_event(201);} 
+        if(KOND==158)         {response_early(2240); store_event(122); store_event(201);}
+        if(KOND==159)         {response_early(2340); store_event(123); store_event(201);}
+        if(KOND==160)         {response_early(2440); store_event(124); store_event(201);}
+
+        if(KOND==161)         {response_early(3030); store_event(130); store_event(201);}		/* match trials */
+        if(KOND==162)         {response_early(3130); store_event(131); store_event(201);}
+        if(KOND==163)         {response_early(3230); store_event(132); store_event(201);}  
+        if(KOND==164)         {response_early(3330); store_event(133); store_event(201);}
+        if(KOND==165)         {response_early(3430); store_event(134); store_event(201);}
+
+        if(KOND==166)         {response_early(3030); store_event(130); store_event(201);}
+        if(KOND==167)         {response_early(3130); store_event(131); store_event(201);}
+        if(KOND==168)         {response_early(3230); store_event(132); store_event(201);}
+        if(KOND==169)         {response_early(3330); store_event(133); store_event(201);}
+        if(KOND==170)         {response_early(3430); store_event(134); store_event(201);}
+
+        if(KOND==171)         {response_early(3030); store_event(130); store_event(201);}
+        if(KOND==172)         {response_early(3130); store_event(131); store_event(201);}
+        if(KOND==173)         {response_early(3230); store_event(132); store_event(201);}
+        if(KOND==174)         {response_early(3330); store_event(133); store_event(201);}
+        if(KOND==175)         {response_early(3430); store_event(134); store_event(201);}
+
+        if(KOND==176)         {response_early(3010); store_event(130); store_event(201);}		/* non-match trials */
+        if(KOND==177)         {response_early(3110); store_event(131); store_event(201);}
+        if(KOND==178)         {response_early(3210); store_event(132); store_event(201);}
+        if(KOND==179)         {response_early(3310); store_event(133); store_event(201);}
+        if(KOND==180)         {response_early(3410); store_event(134); store_event(201);}
+
+        if(KOND==181)         {response_early(3020); store_event(130); store_event(201);}  
+        if(KOND==182)         {response_early(3120); store_event(131); store_event(201);}
+        if(KOND==183)         {response_early(3220); store_event(132); store_event(201);}
+        if(KOND==184)         {response_early(3320); store_event(133); store_event(201);}
+        if(KOND==185)         {response_early(3420); store_event(134); store_event(201);}
+
+        if(KOND==186)         {response_early(3040); store_event(130); store_event(201);}
+        if(KOND==187)         {response_early(3140); store_event(131); store_event(201);}
+        if(KOND==188)         {response_early(3240); store_event(132); store_event(201);}
+        if(KOND==189)         {response_early(3340); store_event(133); store_event(201);}
+        if(KOND==190)         {response_early(3440); store_event(134); store_event(201);}
+
+        if(KOND==191)         {response_early(4040); store_event(140); store_event(201);}		/* match trials */
+        if(KOND==192)         {response_early(4140); store_event(141); store_event(201);}
+        if(KOND==193)         {response_early(4240); store_event(142); store_event(201);}  
+        if(KOND==194)         {response_early(4340); store_event(143); store_event(201);}
+        if(KOND==195)         {response_early(4440); store_event(144); store_event(201);}			
+
+        if(KOND==196)         {response_early(4040); store_event(140); store_event(201);}
+        if(KOND==197)         {response_early(4140); store_event(141); store_event(201);}
+        if(KOND==198)         {response_early(4240); store_event(142); store_event(201);}
+        if(KOND==199)         {response_early(4340); store_event(143); store_event(201);}
+        if(KOND==200)         {response_early(4440); store_event(144); store_event(201);}
+
+        if(KOND==201)         {response_early(4040); store_event(140); store_event(201);}
+        if(KOND==202)         {response_early(4140); store_event(141); store_event(201);}
+        if(KOND==203)         {response_early(4240); store_event(142); store_event(201);}
+        if(KOND==204)         {response_early(4340); store_event(143); store_event(201);}
+        if(KOND==205)         {response_early(4440); store_event(144); store_event(201);}
+
+        if(KOND==206)         {response_early(4010); store_event(140); store_event(201);}		/* non-match trials */
+        if(KOND==207)         {response_early(4110); store_event(141); store_event(201);}
+        if(KOND==208)         {response_early(4210); store_event(142); store_event(201);}
+        if(KOND==209)         {response_early(4310); store_event(143); store_event(201);}
+        if(KOND==210)         {response_early(4410); store_event(144); store_event(201);}
+
+        if(KOND==211)         {response_early(4020); store_event(140); store_event(201);}
+        if(KOND==212)         {response_early(4120); store_event(141); store_event(201);}
+        if(KOND==213)         {response_early(4220); store_event(142); store_event(201);}
+        if(KOND==214)         {response_early(4320); store_event(143); store_event(201);}
+        if(KOND==215)         {response_early(4420); store_event(144); store_event(201);}
+
+        if(KOND==216)         {response_early(4030); store_event(140); store_event(201);}
+        if(KOND==217)         {response_early(4130); store_event(141); store_event(201);}  
+        if(KOND==218)         {response_early(4230); store_event(142); store_event(201);}
+        if(KOND==219)         {response_early(4330); store_event(143); store_event(201);}
+        if(KOND==220)         {response_early(4430); store_event(144); store_event(201);}
+
+        /* control stimuli */
+        if(KOND==221)         {response_early(1011); store_event(150); store_event(201);}		/* match trials */
+        if(KOND==222)         {response_early(1111); store_event(155); store_event(201);}
+        if(KOND==223)         {response_early(1211); store_event(156); store_event(201);}
+        if(KOND==224)         {response_early(1311); store_event(157); store_event(201);}
+        if(KOND==225)         {response_early(1411); store_event(158); store_event(201);}
+
+        if(KOND==226)         {response_early(1011); store_event(150); store_event(201);}
+        if(KOND==227)         {response_early(1111); store_event(155); store_event(201);}
+        if(KOND==228)         {response_early(1211); store_event(156); store_event(201);}
+        if(KOND==229)         {response_early(1311); store_event(157); store_event(201);}	  
+        if(KOND==230)         {response_early(1411); store_event(158); store_event(201);}
+
+        if(KOND==231)         {response_early(1011); store_event(150); store_event(201);}                                                      
+        if(KOND==232)         {response_early(1111); store_event(155); store_event(201);}
+        if(KOND==233)         {response_early(1211); store_event(156); store_event(201);}
+        if(KOND==234)         {response_early(1311); store_event(157); store_event(201);}
+        if(KOND==235)         {response_early(1411); store_event(158); store_event(201);}
+
+        if(KOND==236)         {response_early(1021); store_event(150); store_event(201);}		/* non-match trials */	
+        if(KOND==237)         {response_early(1121); store_event(155); store_event(201);}                                                       
+        if(KOND==238)         {response_early(1221); store_event(156); store_event(201);}
+        if(KOND==239)         {response_early(1321); store_event(157); store_event(201);}
+        if(KOND==240)         {response_early(1421); store_event(158); store_event(201);}
+
+        if(KOND==241)         {response_early(1031); store_event(150); store_event(201);}  
+        if(KOND==242)         {response_early(1131); store_event(155); store_event(201);}
+        if(KOND==243)         {response_early(1231); store_event(156); store_event(201);}
+        if(KOND==244)         {response_early(1331); store_event(157); store_event(201);}
+        if(KOND==245)         {response_early(1431); store_event(158); store_event(201);}
+
+        if(KOND==246)         {response_early(1041); store_event(150); store_event(201);}
+        if(KOND==247)         {response_early(1141); store_event(155); store_event(201);}  
+        if(KOND==248)         {response_early(1241); store_event(156); store_event(201);}
+        if(KOND==249)         {response_early(1341); store_event(157); store_event(201);}                                                       
+        if(KOND==250)         {response_early(1441); store_event(158); store_event(201);}
+
+        if(KOND==251)         {response_early(2021); store_event(160); store_event(201);}		/* match trials */
+        if(KOND==252)         {response_early(2121); store_event(165); store_event(201);}
+        if(KOND==253)         {response_early(2221); store_event(166); store_event(201);}  
+        if(KOND==254)         {response_early(2321); store_event(167); store_event(201);}
+        if(KOND==255)         {response_early(2421); store_event(168); store_event(201);}
+
+        if(KOND==256)         {response_early(2021); store_event(160); store_event(201);}
+        if(KOND==257)         {response_early(2121); store_event(165); store_event(201);}
+        if(KOND==258)         {response_early(2221); store_event(166); store_event(201);}
+        if(KOND==259)         {response_early(2321); store_event(167); store_event(201);} 
+        if(KOND==260)         {response_early(2421); store_event(168); store_event(201);}
+
+        if(KOND==261)         {response_early(2021); store_event(160); store_event(201);}                                                       
+        if(KOND==262)         {response_early(2121); store_event(165); store_event(201);}
+        if(KOND==263)         {response_early(2221); store_event(166); store_event(201);}
+        if(KOND==264)         {response_early(2321); store_event(167); store_event(201);}
+        if(KOND==265)         {response_early(2421); store_event(168); store_event(201);}
+
+        if(KOND==266)         {response_early(2011); store_event(160); store_event(201);}		/* non-match trials */	
+        if(KOND==267)         {response_early(2111); store_event(165); store_event(201);}                                                      
+        if(KOND==268)         {response_early(2211); store_event(166); store_event(201);}
+        if(KOND==269)         {response_early(2311); store_event(167); store_event(201);}
+        if(KOND==270)         {response_early(2411); store_event(168); store_event(201);}
+
+        if(KOND==271)         {response_early(2031); store_event(160); store_event(201);}  
+        if(KOND==272)         {response_early(2131); store_event(165); store_event(201);}	
+        if(KOND==273)         {response_early(2231); store_event(166); store_event(201);}                                                     
+        if(KOND==274)         {response_early(2331); store_event(167); store_event(201);}
+        if(KOND==275)         {response_early(2431); store_event(168); store_event(201);}
+
+        if(KOND==276)         {response_early(2041); store_event(160); store_event(201);}
+        if(KOND==277)         {response_early(2141); store_event(165); store_event(201);}  
+        if(KOND==278)         {response_early(2241); store_event(166); store_event(201);}
+        if(KOND==279)         {response_early(2341); store_event(167); store_event(201);}                                                   
+        if(KOND==280)         {response_early(2441); store_event(168); store_event(201);}
+
+        if(KOND==281)         {response_early(3031); store_event(170); store_event(201);}		/* match trials */
+        if(KOND==282)         {response_early(3131); store_event(175); store_event(201);}
+        if(KOND==283)         {response_early(3231); store_event(176); store_event(201);}
+        if(KOND==284)         {response_early(3331); store_event(177); store_event(201);}
+        if(KOND==285)         {response_early(3431); store_event(178); store_event(201);}
+
+        if(KOND==286)         {response_early(3031); store_event(170); store_event(201);}
+        if(KOND==287)         {response_early(3131); store_event(175); store_event(201);}
+        if(KOND==288)         {response_early(3231); store_event(176); store_event(201);}
+        if(KOND==289)         {response_early(3331); store_event(177); store_event(201);}  
+        if(KOND==290)         {response_early(3431); store_event(178); store_event(201);}
+
+        if(KOND==291)         {response_early(3031); store_event(170); store_event(201);}
+        if(KOND==292)         {response_early(3131); store_event(175); store_event(201);}
+        if(KOND==293)         {response_early(3231); store_event(176); store_event(201);}
+        if(KOND==294)         {response_early(3331); store_event(177); store_event(201);}
+        if(KOND==295)         {response_early(3431); store_event(178); store_event(201);}
+
+        if(KOND==296)         {response_early(3011); store_event(170); store_event(201);}		/* non-match trials */	
+        if(KOND==297)         {response_early(3111); store_event(175); store_event(201);}                                                     
+        if(KOND==298)         {response_early(3211); store_event(176); store_event(201);}
+        if(KOND==299)         {response_early(3311); store_event(177); store_event(201);}
+        if(KOND==300)         {response_early(3411); store_event(178); store_event(201);}
+
+        if(KOND==301)         {response_early(3021); store_event(170); store_event(201);}  
+        if(KOND==302)         {response_early(3121); store_event(175); store_event(201);}
+        if(KOND==303)         {response_early(3221); store_event(176); store_event(201);}                                                
+        if(KOND==304)         {response_early(3321); store_event(177); store_event(201);}
+        if(KOND==305)         {response_early(3421); store_event(178); store_event(201);}
+
+        if(KOND==306)         {response_early(3041); store_event(170); store_event(201);}
+        if(KOND==307)         {response_early(3141); store_event(175); store_event(201);}
+        if(KOND==308)         {response_early(3241); store_event(176); store_event(201);}
+        if(KOND==309)         {response_early(3341); store_event(177); store_event(201);}                                                       
+        if(KOND==310)         {response_early(3441); store_event(178); store_event(201);}
+
+        if(KOND==311)         {response_early(4041); store_event(180); store_event(201);}		/* match trials */
+        if(KOND==312)         {response_early(4141); store_event(185); store_event(201);}
+        if(KOND==313)         {response_early(4241); store_event(186); store_event(201);}  
+        if(KOND==314)         {response_early(4341); store_event(187); store_event(201);}
+        if(KOND==315)         {response_early(4441); store_event(188); store_event(201);}
+
+        if(KOND==316)         {response_early(4041); store_event(180); store_event(201);}
+        if(KOND==317)         {response_early(4141); store_event(185); store_event(201);}
+        if(KOND==318)         {response_early(4241); store_event(186); store_event(201);}
+        if(KOND==319)         {response_early(4341); store_event(187); store_event(201);}  
+        if(KOND==320)         {response_early(4441); store_event(188); store_event(201);}
+
+        if(KOND==321)         {response_early(4041); store_event(180); store_event(201);}                                                      
+        if(KOND==322)         {response_early(4141); store_event(185); store_event(201);}
+        if(KOND==323)         {response_early(4241); store_event(186); store_event(201);}
+        if(KOND==324)         {response_early(4341); store_event(187); store_event(201);}
+        if(KOND==325)         {response_early(4441); store_event(188); store_event(201);}
+
+        if(KOND==326)         {response_early(4011); store_event(180); store_event(201);}		/* non-match trials */	
+        if(KOND==327)         {response_early(4111); store_event(185); store_event(201);}
+        if(KOND==328)         {response_early(4211); store_event(186); store_event(201);}
+        if(KOND==329)         {response_early(4311); store_event(187); store_event(201);}
+        if(KOND==330)         {response_early(4411); store_event(188); store_event(201);}
+
+        if(KOND==331)         {response_early(4021); store_event(180); store_event(201);}  
+        if(KOND==332)         {response_early(4121); store_event(185); store_event(201);}
+        if(KOND==333)         {response_early(4221); store_event(186); store_event(201);}                                                        
+        if(KOND==334)         {response_early(4321); store_event(187); store_event(201);}
+        if(KOND==335)         {response_early(4421); store_event(188); store_event(201);}
+
+        if(KOND==336)         {response_early(4031); store_event(180); store_event(201);}
+        if(KOND==337)         {response_early(4131); store_event(185); store_event(201);}  
+        if(KOND==338)         {response_early(4231); store_event(186); store_event(201);}
+        if(KOND==339)         {response_early(4331); store_event(187); store_event(201);}                                                      
+        if(KOND==340)         {response_early(4431); store_event(188); store_event(201);}
+
+	break;
+
+	case MISSING:
+	/* no bar release after (prolonged) match stimulus */
+	/* response error #1, also store response code */
+
+        /* standard stimuli */
+        if(KOND==101)         {response_missing(1010); store_event(110); store_event(201);}     /* match trials */
+        if(KOND==102)         {response_missing(1110); store_event(111); store_event(201);}
+        if(KOND==103)         {response_missing(1210); store_event(112); store_event(201);}
+        if(KOND==104)         {response_missing(1310); store_event(113); store_event(201);}
+        if(KOND==105)         {response_missing(1410); store_event(114); store_event(201);}
+
+        if(KOND==106)         {response_missing(1010); store_event(110); store_event(201);}
+        if(KOND==107)         {response_missing(1110); store_event(111); store_event(201);}
+        if(KOND==108)         {response_missing(1210); store_event(112); store_event(201);}
+        if(KOND==109)         {response_missing(1310); store_event(113); store_event(201);}
+        if(KOND==110)         {response_missing(1410); store_event(114); store_event(201);}
+
+        if(KOND==111)         {response_missing(1010); store_event(110); store_event(201);}
+        if(KOND==112)         {response_missing(1110); store_event(111); store_event(201);}
+        if(KOND==113)         {response_missing(1210); store_event(112); store_event(201);}
+        if(KOND==114)         {response_missing(1310); store_event(113); store_event(201);}
+        if(KOND==115)         {response_missing(1410); store_event(114); store_event(201);}
+
+        if(KOND==116)         {response_missing(1020); store_event(110); store_event(201);}     /* non-match trials */	
+        if(KOND==117)         {response_missing(1120); store_event(111); store_event(201);}
+        if(KOND==118)         {response_missing(1220); store_event(112); store_event(201);}
+        if(KOND==119)         {response_missing(1320); store_event(113); store_event(201);}
+        if(KOND==120)         {response_missing(1420); store_event(114); store_event(201);}
+
+        if(KOND==121)         {response_missing(1030); store_event(110); store_event(201);}
+        if(KOND==122)         {response_missing(1130); store_event(111); store_event(201);}
+        if(KOND==123)         {response_missing(1230); store_event(112); store_event(201);}
+        if(KOND==124)         {response_missing(1330); store_event(113); store_event(201);}
+        if(KOND==125)         {response_missing(1430); store_event(114); store_event(201);}
+
+        if(KOND==126)         {response_missing(1040); store_event(110); store_event(201);}
+        if(KOND==127)         {response_missing(1140); store_event(111); store_event(201);}
+        if(KOND==128)         {response_missing(1240); store_event(112); store_event(201);}
+        if(KOND==129)         {response_missing(1340); store_event(113); store_event(201);}
+        if(KOND==130)         {response_missing(1440); store_event(114); store_event(201);}
+
+        if(KOND==131)         {response_missing(2020); store_event(120); store_event(201);}		/* match trials */
+        if(KOND==132)         {response_missing(2120); store_event(121); store_event(201);}
+        if(KOND==133)         {response_missing(2220); store_event(122); store_event(201);}  
+        if(KOND==134)         {response_missing(2320); store_event(123); store_event(201);}
+        if(KOND==135)         {response_missing(2420); store_event(124); store_event(201);}
+
+        if(KOND==136)         {response_missing(2020); store_event(120); store_event(201);}
+        if(KOND==137)         {response_missing(2120); store_event(121); store_event(201);}
+        if(KOND==138)         {response_missing(2220); store_event(122); store_event(201);}
+        if(KOND==139)         {response_missing(2320); store_event(123); store_event(201);}  
+        if(KOND==140)         {response_missing(2420); store_event(124); store_event(201);}
+
+        if(KOND==141)         {response_missing(2020); store_event(120); store_event(201);}
+        if(KOND==142)         {response_missing(2120); store_event(121); store_event(201);}
+        if(KOND==143)         {response_missing(2220); store_event(122); store_event(201);}
+        if(KOND==144)         {response_missing(2320); store_event(123); store_event(201);}
+        if(KOND==145)         {response_missing(2420); store_event(124); store_event(201);}
+
+        if(KOND==146)         {response_missing(2010); store_event(120); store_event(201);}		/* non-match trials */	
+        if(KOND==147)         {response_missing(2110); store_event(121); store_event(201);}	
+        if(KOND==148)         {response_missing(2210); store_event(122); store_event(201);}
+        if(KOND==149)         {response_missing(2310); store_event(123); store_event(201);}
+        if(KOND==150)         {response_missing(2410); store_event(124); store_event(201);}
+
+        if(KOND==151)         {response_missing(2030); store_event(120); store_event(201);} 
+        if(KOND==152)         {response_missing(2130); store_event(121); store_event(201);}
+        if(KOND==153)         {response_missing(2230); store_event(122); store_event(201);}
+        if(KOND==154)         {response_missing(2330); store_event(123); store_event(201);}
+        if(KOND==155)         {response_missing(2430); store_event(124); store_event(201);}
+
+        if(KOND==156)         {response_missing(2040); store_event(120); store_event(201);}
+        if(KOND==157)         {response_missing(2140); store_event(121); store_event(201);} 
+        if(KOND==158)         {response_missing(2240); store_event(122); store_event(201);}
+        if(KOND==159)         {response_missing(2340); store_event(123); store_event(201);}
+        if(KOND==160)         {response_missing(2440); store_event(124); store_event(201);}
+
+        if(KOND==161)         {response_missing(3030); store_event(130); store_event(201);}		/* match trials */
+        if(KOND==162)         {response_missing(3130); store_event(131); store_event(201);}
+        if(KOND==163)         {response_missing(3230); store_event(132); store_event(201);}  
+        if(KOND==164)         {response_missing(3330); store_event(133); store_event(201);}
+        if(KOND==165)         {response_missing(3430); store_event(134); store_event(201);}
+
+        if(KOND==166)         {response_missing(3030); store_event(130); store_event(201);}
+        if(KOND==167)         {response_missing(3130); store_event(131); store_event(201);}
+        if(KOND==168)         {response_missing(3230); store_event(132); store_event(201);}
+        if(KOND==169)         {response_missing(3330); store_event(133); store_event(201);}
+        if(KOND==170)         {response_missing(3430); store_event(134); store_event(201);}
+
+        if(KOND==171)         {response_missing(3030); store_event(130); store_event(201);}
+        if(KOND==172)         {response_missing(3130); store_event(131); store_event(201);}
+        if(KOND==173)         {response_missing(3230); store_event(132); store_event(201);}
+        if(KOND==174)         {response_missing(3330); store_event(133); store_event(201);}
+        if(KOND==175)         {response_missing(3430); store_event(134); store_event(201);}
+
+        if(KOND==176)         {response_missing(3010); store_event(130); store_event(201);}		/* non-match trials */
+        if(KOND==177)         {response_missing(3110); store_event(131); store_event(201);}
+        if(KOND==178)         {response_missing(3210); store_event(132); store_event(201);}
+        if(KOND==179)         {response_missing(3310); store_event(133); store_event(201);}
+        if(KOND==180)         {response_missing(3410); store_event(134); store_event(201);}
+
+        if(KOND==181)         {response_missing(3020); store_event(130); store_event(201);}  
+        if(KOND==182)         {response_missing(3120); store_event(131); store_event(201);}
+        if(KOND==183)         {response_missing(3220); store_event(132); store_event(201);}
+        if(KOND==184)         {response_missing(3320); store_event(133); store_event(201);}
+        if(KOND==185)         {response_missing(3420); store_event(134); store_event(201);}
+
+        if(KOND==186)         {response_missing(3040); store_event(130); store_event(201);}
+        if(KOND==187)         {response_missing(3140); store_event(131); store_event(201);}
+        if(KOND==188)         {response_missing(3240); store_event(132); store_event(201);}
+        if(KOND==189)         {response_missing(3340); store_event(133); store_event(201);}
+        if(KOND==190)         {response_missing(3440); store_event(134); store_event(201);}
+
+        if(KOND==191)         {response_missing(4040); store_event(140); store_event(201);}		/* match trials */
+        if(KOND==192)         {response_missing(4140); store_event(141); store_event(201);}
+        if(KOND==193)         {response_missing(4240); store_event(142); store_event(201);}  
+        if(KOND==194)         {response_missing(4340); store_event(143); store_event(201);}
+        if(KOND==195)         {response_missing(4440); store_event(144); store_event(201);}			
+
+        if(KOND==196)         {response_missing(4040); store_event(140); store_event(201);}
+        if(KOND==197)         {response_missing(4140); store_event(141); store_event(201);}
+        if(KOND==198)         {response_missing(4240); store_event(142); store_event(201);}
+        if(KOND==199)         {response_missing(4340); store_event(143); store_event(201);}
+        if(KOND==200)         {response_missing(4440); store_event(144); store_event(201);}
+
+        if(KOND==201)         {response_missing(4040); store_event(140); store_event(201);}
+        if(KOND==202)         {response_missing(4140); store_event(141); store_event(201);}
+        if(KOND==203)         {response_missing(4240); store_event(142); store_event(201);}
+        if(KOND==204)         {response_missing(4340); store_event(143); store_event(201);}
+        if(KOND==205)         {response_missing(4440); store_event(144); store_event(201);}
+
+        if(KOND==206)         {response_missing(4010); store_event(140); store_event(201);}		/* non-match trials */
+        if(KOND==207)         {response_missing(4110); store_event(141); store_event(201);}
+        if(KOND==208)         {response_missing(4210); store_event(142); store_event(201);}
+        if(KOND==209)         {response_missing(4310); store_event(143); store_event(201);}
+        if(KOND==210)         {response_missing(4410); store_event(144); store_event(201);}
+
+        if(KOND==211)         {response_missing(4020); store_event(140); store_event(201);}
+        if(KOND==212)         {response_missing(4120); store_event(141); store_event(201);}
+        if(KOND==213)         {response_missing(4220); store_event(142); store_event(201);}
+        if(KOND==214)         {response_missing(4320); store_event(143); store_event(201);}
+        if(KOND==215)         {response_missing(4420); store_event(144); store_event(201);}
+
+        if(KOND==216)         {response_missing(4030); store_event(140); store_event(201);}
+        if(KOND==217)         {response_missing(4130); store_event(141); store_event(201);}  
+        if(KOND==218)         {response_missing(4230); store_event(142); store_event(201);}
+        if(KOND==219)         {response_missing(4330); store_event(143); store_event(201);}
+        if(KOND==220)         {response_missing(4430); store_event(144); store_event(201);}
+
+        /* control stimuli */
+        if(KOND==221)         {response_missing(1011); store_event(150); store_event(201);}		/* match trials */
+        if(KOND==222)         {response_missing(1111); store_event(155); store_event(201);}
+        if(KOND==223)         {response_missing(1211); store_event(156); store_event(201);}
+        if(KOND==224)         {response_missing(1311); store_event(157); store_event(201);}
+        if(KOND==225)         {response_missing(1411); store_event(158); store_event(201);}
+
+        if(KOND==226)         {response_missing(1011); store_event(150); store_event(201);}
+        if(KOND==227)         {response_missing(1111); store_event(155); store_event(201);}
+        if(KOND==228)         {response_missing(1211); store_event(156); store_event(201);}
+        if(KOND==229)         {response_missing(1311); store_event(157); store_event(201);}	  
+        if(KOND==230)         {response_missing(1411); store_event(158); store_event(201);}
+
+        if(KOND==231)         {response_missing(1011); store_event(150); store_event(201);}                                                      
+        if(KOND==232)         {response_missing(1111); store_event(155); store_event(201);}
+        if(KOND==233)         {response_missing(1211); store_event(156); store_event(201);}
+        if(KOND==234)         {response_missing(1311); store_event(157); store_event(201);}
+        if(KOND==235)         {response_missing(1411); store_event(158); store_event(201);}
+
+        if(KOND==236)         {response_missing(1021); store_event(150); store_event(201);}		/* non-match trials */	
+        if(KOND==237)         {response_missing(1121); store_event(155); store_event(201);}                                                       
+        if(KOND==238)         {response_missing(1221); store_event(156); store_event(201);}
+        if(KOND==239)         {response_missing(1321); store_event(157); store_event(201);}
+        if(KOND==240)         {response_missing(1421); store_event(158); store_event(201);}
+
+        if(KOND==241)         {response_missing(1031); store_event(150); store_event(201);}  
+        if(KOND==242)         {response_missing(1131); store_event(155); store_event(201);}
+        if(KOND==243)         {response_missing(1231); store_event(156); store_event(201);}
+        if(KOND==244)         {response_missing(1331); store_event(157); store_event(201);}
+        if(KOND==245)         {response_missing(1431); store_event(158); store_event(201);}
+
+        if(KOND==246)         {response_missing(1041); store_event(150); store_event(201);}
+        if(KOND==247)         {response_missing(1141); store_event(155); store_event(201);}  
+        if(KOND==248)         {response_missing(1241); store_event(156); store_event(201);}
+        if(KOND==249)         {response_missing(1341); store_event(157); store_event(201);}                                                       
+        if(KOND==250)         {response_missing(1441); store_event(158); store_event(201);}
+
+        if(KOND==251)         {response_missing(2021); store_event(160); store_event(201);}		/* match trials */
+        if(KOND==252)         {response_missing(2121); store_event(165); store_event(201);}
+        if(KOND==253)         {response_missing(2221); store_event(166); store_event(201);}  
+        if(KOND==254)         {response_missing(2321); store_event(167); store_event(201);}
+        if(KOND==255)         {response_missing(2421); store_event(168); store_event(201);}
+
+        if(KOND==256)         {response_missing(2021); store_event(160); store_event(201);}
+        if(KOND==257)         {response_missing(2121); store_event(165); store_event(201);}
+        if(KOND==258)         {response_missing(2221); store_event(166); store_event(201);}
+        if(KOND==259)         {response_missing(2321); store_event(167); store_event(201);} 
+        if(KOND==260)         {response_missing(2421); store_event(168); store_event(201);}
+
+        if(KOND==261)         {response_missing(2021); store_event(160); store_event(201);}                                                       
+        if(KOND==262)         {response_missing(2121); store_event(165); store_event(201);}
+        if(KOND==263)         {response_missing(2221); store_event(166); store_event(201);}
+        if(KOND==264)         {response_missing(2321); store_event(167); store_event(201);}
+        if(KOND==265)         {response_missing(2421); store_event(168); store_event(201);}
+
+        if(KOND==266)         {response_missing(2011); store_event(160); store_event(201);}		/* non-match trials */	
+        if(KOND==267)         {response_missing(2111); store_event(165); store_event(201);}                                                      
+        if(KOND==268)         {response_missing(2211); store_event(166); store_event(201);}
+        if(KOND==269)         {response_missing(2311); store_event(167); store_event(201);}
+        if(KOND==270)         {response_missing(2411); store_event(168); store_event(201);}
+
+        if(KOND==271)         {response_missing(2031); store_event(160); store_event(201);}  
+        if(KOND==272)         {response_missing(2131); store_event(165); store_event(201);}	
+        if(KOND==273)         {response_missing(2231); store_event(166); store_event(201);}                                                     
+        if(KOND==274)         {response_missing(2331); store_event(167); store_event(201);}
+        if(KOND==275)         {response_missing(2431); store_event(168); store_event(201);}
+
+        if(KOND==276)         {response_missing(2041); store_event(160); store_event(201);}
+        if(KOND==277)         {response_missing(2141); store_event(165); store_event(201);}  
+        if(KOND==278)         {response_missing(2241); store_event(166); store_event(201);}
+        if(KOND==279)         {response_missing(2341); store_event(167); store_event(201);}                                                   
+        if(KOND==280)         {response_missing(2441); store_event(168); store_event(201);}
+
+        if(KOND==281)         {response_missing(3031); store_event(170); store_event(201);}		/* match trials */
+        if(KOND==282)         {response_missing(3131); store_event(175); store_event(201);}
+        if(KOND==283)         {response_missing(3231); store_event(176); store_event(201);}
+        if(KOND==284)         {response_missing(3331); store_event(177); store_event(201);}
+        if(KOND==285)         {response_missing(3431); store_event(178); store_event(201);}
+
+        if(KOND==286)         {response_missing(3031); store_event(170); store_event(201);}
+        if(KOND==287)         {response_missing(3131); store_event(175); store_event(201);}
+        if(KOND==288)         {response_missing(3231); store_event(176); store_event(201);}
+        if(KOND==289)         {response_missing(3331); store_event(177); store_event(201);}  
+        if(KOND==290)         {response_missing(3431); store_event(178); store_event(201);}
+
+        if(KOND==291)         {response_missing(3031); store_event(170); store_event(201);}
+        if(KOND==292)         {response_missing(3131); store_event(175); store_event(201);}
+        if(KOND==293)         {response_missing(3231); store_event(176); store_event(201);}
+        if(KOND==294)         {response_missing(3331); store_event(177); store_event(201);}
+        if(KOND==295)         {response_missing(3431); store_event(178); store_event(201);}
+
+        if(KOND==296)         {response_missing(3011); store_event(170); store_event(201);}		/* non-match trials */	
+        if(KOND==297)         {response_missing(3111); store_event(175); store_event(201);}                                                     
+        if(KOND==298)         {response_missing(3211); store_event(176); store_event(201);}
+        if(KOND==299)         {response_missing(3311); store_event(177); store_event(201);}
+        if(KOND==300)         {response_missing(3411); store_event(178); store_event(201);}
+
+        if(KOND==301)         {response_missing(3021); store_event(170); store_event(201);}  
+        if(KOND==302)         {response_missing(3121); store_event(175); store_event(201);}
+        if(KOND==303)         {response_missing(3221); store_event(176); store_event(201);}                                                
+        if(KOND==304)         {response_missing(3321); store_event(177); store_event(201);}
+        if(KOND==305)         {response_missing(3421); store_event(178); store_event(201);}
+
+        if(KOND==306)         {response_missing(3041); store_event(170); store_event(201);}
+        if(KOND==307)         {response_missing(3141); store_event(175); store_event(201);}
+        if(KOND==308)         {response_missing(3241); store_event(176); store_event(201);}
+        if(KOND==309)         {response_missing(3341); store_event(177); store_event(201);}                                                       
+        if(KOND==310)         {response_missing(3441); store_event(178); store_event(201);}
+
+        if(KOND==311)         {response_missing(4041); store_event(180); store_event(201);}		/* match trials */
+        if(KOND==312)         {response_missing(4141); store_event(185); store_event(201);}
+        if(KOND==313)         {response_missing(4241); store_event(186); store_event(201);}  
+        if(KOND==314)         {response_missing(4341); store_event(187); store_event(201);}
+        if(KOND==315)         {response_missing(4441); store_event(188); store_event(201);}
+
+        if(KOND==316)         {response_missing(4041); store_event(180); store_event(201);}
+        if(KOND==317)         {response_missing(4141); store_event(185); store_event(201);}
+        if(KOND==318)         {response_missing(4241); store_event(186); store_event(201);}
+        if(KOND==319)         {response_missing(4341); store_event(187); store_event(201);}  
+        if(KOND==320)         {response_missing(4441); store_event(188); store_event(201);}
+
+        if(KOND==321)         {response_missing(4041); store_event(180); store_event(201);}                                                      
+        if(KOND==322)         {response_missing(4141); store_event(185); store_event(201);}
+        if(KOND==323)         {response_missing(4241); store_event(186); store_event(201);}
+        if(KOND==324)         {response_missing(4341); store_event(187); store_event(201);}
+        if(KOND==325)         {response_missing(4441); store_event(188); store_event(201);}
+
+        if(KOND==326)         {response_missing(4011); store_event(180); store_event(201);}		/* non-match trials */	
+        if(KOND==327)         {response_missing(4111); store_event(185); store_event(201);}
+        if(KOND==328)         {response_missing(4211); store_event(186); store_event(201);}
+        if(KOND==329)         {response_missing(4311); store_event(187); store_event(201);}
+        if(KOND==330)         {response_missing(4411); store_event(188); store_event(201);}
+
+        if(KOND==331)         {response_missing(4021); store_event(180); store_event(201);}  
+        if(KOND==332)         {response_missing(4121); store_event(185); store_event(201);}
+        if(KOND==333)         {response_missing(4221); store_event(186); store_event(201);}                                                        
+        if(KOND==334)         {response_missing(4321); store_event(187); store_event(201);}
+        if(KOND==335)         {response_missing(4421); store_event(188); store_event(201);}
+
+        if(KOND==336)         {response_missing(4031); store_event(180); store_event(201);}
+        if(KOND==337)         {response_missing(4131); store_event(185); store_event(201);}  
+        if(KOND==338)         {response_missing(4231); store_event(186); store_event(201);}
+        if(KOND==339)         {response_missing(4331); store_event(187); store_event(201);}                                                      
+        if(KOND==340)         {response_missing(4431); store_event(188); store_event(201);}
+
+	break;
+	}
+}
+
+
+/**************************************************************/
+/*                           TIME_OUT_MISTAKE                 */
+/**************************************************************/
+
+void time_out_mistake(int ms)
+{
+	/* show red screen */
+        set_colorABS(0,40,0,0);
+	
+        MS_TIMERset(1, ms);
+        while(MS_TIMERcheck(1)!=0);
+
+	/* change to black again */
+	set_colorABS(0,0,0,0);
+}
+
+
+/**************************************************************/
+/*                           TTL                              */
+/**************************************************************/
+
+void ttl()
+{
+	/* sends a TTL pulse to device 1 on bit 64 of port 2 */
+
+	DEVoutp(1,2,64);
+	MS_TIMERset(20,1);
+	while(MS_TIMERcheck(20)!=0);
+	DEVoutp(1,2,0);
+}
