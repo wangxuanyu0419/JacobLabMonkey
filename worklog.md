@@ -78,6 +78,7 @@ cfg_spect.tapsmofrq = [2]; % for fft;
 ![SampAlignMissingChan](./code/Training/Powerplots/R120508_trial.png)
 * try to add titles, labels to the singleplotTFR
 * ***Question***: VIP pre-sample ramp? small peaks following delay period?
+* ***Question*** bsfreq in ft_preprocessing? what is it?
 
 # To-do list:
 * define a trial structure for the data, arrage that for whole-dataset analysis (ft_reefinetrial)

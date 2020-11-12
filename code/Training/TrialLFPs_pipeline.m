@@ -108,6 +108,7 @@ cfg_plot = [];
 cfg_plot.channel = {'AD*'};
 cfg_plot.xlim = [-0.5 3];
 cfg_plot.ylim = [0 128];
+cfg_plot.title = [ftitle ' All Channels'];
 f = figure
 ft_singleplotTFR(cfg_plot,data_freq);
 saveas(f,fullfile('Powerplots',[ftitle '_trial']),'png');
@@ -117,6 +118,7 @@ cfg_plot_PFC = [];
 cfg_plot_PFC.channel = PFC;
 cfg_plot_PFC.xlim = [-0.5 3];
 cfg_plot_PFC.ylim = [0 128];
+cfg_plot.title = [ftitle ' PFC'];
 f_PFC = figure
 ft_singleplotTFR(cfg_plot_PFC,data_freq);
 saveas(f_PFC,fullfile('Powerplots',[ftitle '_trial_PFC']),'png');
@@ -126,6 +128,7 @@ cfg_plot_VIP = [];
 cfg_plot_VIP.channel = VIP;
 cfg_plot_VIP.xlim = [-0.5 3];
 cfg_plot_VIP.ylim = [0 128];
+cfg_plot.title = [ftitle ' VIP'];
 f_VIP = figure
 ft_singleplotTFR(cfg_plot_VIP,data_freq);
 saveas(f_VIP,fullfile('Powerplots',[ftitle '_trial_VIP']),'png');
