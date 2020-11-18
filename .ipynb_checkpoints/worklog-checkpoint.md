@@ -52,7 +52,7 @@
 * ***Question*** sampling rate: 40kHz for what and 1kHz for what?
 
 ## 2020.11.11
-* ***Question*** Why there're NaNs in the spectral data? Solution: fieldname 'channel' not 'Channel'; a wrong fieldname will be ignored by FieldTrip without warning.
+* <s>***Question***</s> Why there're NaNs in the spectral data? Solution: fieldname 'channel' not 'Channel'; a wrong fieldname will be ignored by FieldTrip without warning.
 * ***Question*** try `mtmfft`, foilim [2 128] return 517 values, why? Suppose to be averaging across the range
 * mtmfft with the following setup result in spectra:
 ```
@@ -79,6 +79,16 @@ cfg_spect.tapsmofrq = [2]; % for fft;
 * try to add titles, labels to the singleplotTFR
 * ***Question***: VIP pre-sample ramp? small peaks following delay period?
 * ***Question*** bsfreq in ft_preprocessing? what is it?
+
+## 2020.11.17
+* Discussed a little about the training powerplots with Simon, acceptable and ready to enter the next stage
+* working on getting guest accounts for the lab, not solved
+
+## 2020.11.18
+* Use Shirui's account on the Analysis PC, done.
+* start to do preprocessing:
+- [201118-preprocessing](./code/Preprocessing/201118-preprocessing.m)
+* familiarize with superlet method
 
 # To-do list:
 * define a trial structure for the data, arrage that for whole-dataset analysis (ft_reefinetrial)
