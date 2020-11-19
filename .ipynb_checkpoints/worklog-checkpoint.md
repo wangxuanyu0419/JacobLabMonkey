@@ -38,10 +38,11 @@
 * try visualization of the raw data for inspection purpose `ft_databrowser`
     - no remarkable trends or artifacts in LFP
     - may try ICA later;
-* ***Question***: 
+* <s>***Question***</s>: 
     - A ceiling artifact in AD14, `R120410`, correct trial 49;
     - Channel AD14 not stable troughout the whole session
     - What to do?
+    - Daniel haven't screen for these artifacts (saturation of data acquisition); may need eyeballing for excluding certain trials
 
 ![Ceiling?](./General/Figures/Questions/Ceiling.png)
 
@@ -87,9 +88,15 @@ cfg_spect.tapsmofrq = [2]; % for fft;
 ## 2020.11.18
 * Use Shirui's account on the Analysis PC, done.
 * start to do preprocessing:
-- [201118-preprocessing](./code/Preprocessing/201118-preprocessing.m)
-* familiarize with superlet method
+  - [preprocessing_201118](./code/1.Preprocessing/preprocessing_201118.m)
+  - [trialfun_201118](./code/1.Preprocessing/trialfun_201118.m) copied from `./code/Training/trialfun_training.m`
+* develop trial screening protocol:
+  - [TrialEyeballing_201118](./code/0.TrialScreening/TrialEyeballing_201118.m)
+* Alpha connection is bad: resetting already established connections from time to time
+    - a hack: ssh through beta then through alpha
+    
 
 # To-do list:
-* define a trial structure for the data, arrage that for whole-dataset analysis (ft_reefinetrial)
-* 
+* () define a trial structure for the data, arrage that for whole-dataset analysis (ft_redefinetrial)
+* () artifact screening (for trials / electrodes)
+* () familiarize with superlet method

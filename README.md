@@ -230,5 +230,9 @@ Pipeline:
 ### plot layout
 `ft_singleplotTFR` or `imagesc(squeeze...)`. [Tutorial](https://www.fieldtriptoolbox.org/tutorial/plotting/)
 
+### trial screening
+see folder `./code/0.TrialScreening`
+
+
 ### Notes：
 * Always check the channel names, there can be some LFP channels not working or not recorded, e.g. `R120508-02_lfp.nex`
