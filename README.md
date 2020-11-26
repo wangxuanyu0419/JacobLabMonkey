@@ -200,7 +200,7 @@ Pipeline:
 % % 39 logarithmically spaced frequencies (Siegel et al. 2009):
 ```
     
-#### **Wavelet**: 
+## **Wavelet**: 
 * [Introduction](https://www.eecis.udel.edu/~amer/CISC651/IEEEwavelet.pdf)
     - process data at different scales/resolutions; large window leads to gross features, small to details;
     - well-suited for data with sharp discontinuities
@@ -223,7 +223,7 @@ Pipeline:
 * Discrete (**DWT**): denoising, compression (figure)
 
 
-#### **Superlet**
+## **Superlet**
 * 
 
 

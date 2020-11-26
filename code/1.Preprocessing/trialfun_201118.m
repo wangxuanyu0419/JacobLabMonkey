@@ -1,4 +1,4 @@
-function trl = trialfun_training(cfg)
+function trl = trialfun_201118(cfg)
 
 % This trial segment function requires the following fields to be specified:
 %     - eventvalue: event E to align, e.g. 3 for reward, 25 for sample stim onset
@@ -13,6 +13,8 @@ function trl = trialfun_training(cfg)
 %% read in header and events
     hdr     = ft_read_header(cfg.dataset); % mainly for sampling frequency
     event   = ft_read_event(cfg.dataset);
+    
+    stdir = '/mnt/share/XUANYU/MONKEY/JacobLabMonkey';
     
     %% event marker codes
     beginTrial          = 9;
@@ -68,7 +70,7 @@ function trl = trialfun_training(cfg)
     
     % get trial info
     ctxfilename = [cfg.dataset((end-17):(end-11)),'.mat'];
-    load(fullfile('C:\Users\XuanyuWang\OneDrive - campus.lmu.de\Lab works\JacobLab-MonkeyData\Git\JacobLabMonkey\data\spike_nexctx',ctxfilename));
+    load(fullfile(stdir,'data','spike_nexctx',ctxfilename));
     trlnum = length(nexctx.TrialResponseErrors);
     
     % select trials

@@ -95,8 +95,50 @@ cfg_spect.tapsmofrq = [2]; % for fft;
 * Alpha connection is bad: resetting already established connections from time to time
     - a hack: ssh through beta then through alpha
     
+## 2020.11.19
+* Start trial screening:
+    - Protocol: run [TrialEyeballing_201118](./code/0.TrialScreening/TrialEyeballing_201118.m)
+    - each session was break apart with a `pause`
+    - wrong trials note down at [TrialScreening](./data/TrialScreening_201118/badtrials.md)
+    
+## 2020.11.20
+* plot single trial for review:
+
+![1.1](./data/TrialScreening_201118/badtrials/1.1.AD14.png)
+
+    - range of data: [-499.7559 499.7559]; saturation if exceeding the range
+    
+* Auto detect saturations:
+    - `data_prep` saved at `./data/TrialScreening_201118/*.mat`
+    - badtrial figures at `./data/TrialScreening_201118/.png`; name formatting: session.trial.png
+    
+## 2020.11.21
+* error trials got, only observed in 2 sessions (i=[1 4], name = ['R120410' 'R120413'])
+* further eyeballing: kick out trials with saturation in time window [0 3000] after event *25* (sample onset)
+    - 1.[1 16 21 22 36 40 54 58 89], 9 trials, all in channel `AD14`
+    - 4.[5 7 10 15 16 23 26 27 32 33 39 45 47 48 49 50 52 54 56 57 59 60 64 65 66 67 76 78 80 82 83 95 97 99 104 105 106 118 128 142 145 146 148 151 153 155 157 160 162 165 174 175 176 177 180 182 183 185 187 188 190 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207 208 209 210 211 212 213 214 215 216 217 218 219 220 223 226 227 228 229 234 235 237 238 242 243 244 247 248 249 250 251 254 257 258 259 261 263 265 266 269 271 272 274 275 276 277], 121 trials, all in channel `AD11`, consider exclude the whole channel
+
+## 2020.11.23
+* Check Superlet method. It's in Daniels' github
+
+## 2020.11.24
+* continue with the Superlet method.
+* Issue: Daniel's development on Superlet for Fieldtrip has not been finished. There seems scaling issue (see email and `./General/Methods/`)
+* plot with [contourf](https://mailman.science.ru.nl/pipermail/fieldtrip/2015-July/035240.html)
+* Power plots with different methods in example trials, averaged across electrodes: `./code/Training/ft_superlet/Plots`
+e.g.: ![1.182](./code/Training/ft_superlet/across_electrode/R120410_182.png)
+* MTMCONVOL method result in 
+smaller values in power, especially for lower frequencies. Might be normalized across frequency bands? (i.e. uV<sup>2</sup>/Hz, 1/f rule considered)
+* ***Question*** what's the unit for the power values in each bin? e.g. in wavelet analysis? Also mine is different from Daniel's, also because of normalization?
+![Daniel example](./General/Figures/Questions/Daniel_example_burst.png)
 
 # To-do list:
-* () define a trial structure for the data, arrage that for whole-dataset analysis (ft_redefinetrial)
-* () artifact screening (for trials / electrodes)
+* (x) define a trial structure for the data, arrage that for whole-dataset analysis (ft_redefinetrial)
+* (x) artifact screening (for trials / electrodes)
 * () familiarize with superlet method
+
+# Ideas to go
+* Item specific bursts / burst identities:
+    - spatial outlay: weighted in different electrodes
+    - sorted by spiking neurons
+* Dopamine ionophoresis effect

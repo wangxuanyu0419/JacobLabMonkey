@@ -1,0 +1,27 @@
+function f = PlotSingleTrials_201120()
+
+f = figure('Position',[1 1 2560 1440],'Visible',true,'Tag','Main');
+ftitle = cfg_deftrl.dataset((end-17):(end-11));
+
+chantgt = 'AD14';
+chanidx = find(strcmp(data_prep.label,chantgt));
+trlsel = [1];
+
+if isempty(chanidx)
+    continue
+else
+    close all
+    hold
+    plot(data_prep.time{trlsel}, data_prep.trial{trlsel}(chanidx,:));
+    yl = [-550 550];
+    plot([0 0],yl,'--k');
+    if i < 9
+        title([chantgt ' PFC']);
+    else
+        title([chantgt ' VIP']);
+    end
+    xlabel('time to reward [s]');
+    xlim([-1.5 4]);
+    ylim(yl);
+    ylabel('LFP [uV]')
+end
