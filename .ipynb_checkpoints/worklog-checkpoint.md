@@ -131,11 +131,87 @@ e.g.: ![1.182](./code/Training/ft_superlet/across_electrode/R120410_182.png)
 smaller values in power, especially for lower frequencies. Might be normalized across frequency bands? (i.e. uV<sup>2</sup>/Hz, 1/f rule considered)
 * ***Question*** what's the unit for the power values in each bin? e.g. in wavelet analysis? Also mine is different from Daniel's, also because of normalization?
 ![Daniel example](./General/Figures/Questions/Daniel_example_burst.png)
+    - Look into the codes!
+
+## 2020.11.26
+* plot a lot of figures with example sessions / trial, at `./code/Training/ft_superlet`, aiming at visualize the result of different analysis methods.
+* confirm superlet and wavelet methods are prone to 1/f law. Need normalization
+
+## 2020.11.27
+* give data club presentation, discuss a few things:
+    - a fixed way for standardization is necessary, ionto data are more messy, better less strict way: **only exclude trials with saturation within [-0.5 3] range.** Save the electrodes
+    - do not need to do 1/f normalization, when normalized by -9~0 trials, already across frequency bands
+    - filter the 50/60Hz noises: like EEG, relate to e.g. light alternating f; So called **Power line component**
+    - each channel separated by 1mm, enough to be considered as independent
+    - maybe relate to spikes first before doing clustering etc.
+    - should try to reproduce and catch up to Daniel's progress so
+* migrate lfp_da repo to the `share/Xuanyu` folder
+
+## 2020.12.01
+* run freqanalysis and normalization in 1st session.
+     - Takes very long, up to 3h for a single session.
+     - Maybe exclude bad trials before doing so. **Nope**, keep it for later analysis.
+* Test if the normalization is working:
+    - Plot across electrodes for trial-average and example trial (`./code/1.Preprocessing/plot_example`)
+* discover a bug in previous generation of badtrials: `TrialScreening_Pipeline`, line 53:
+> ...find(data_prep.trial{ntrl}(**:,**1000:4500))...
+    - It previously takes the 1000:4500 element instead of from the second dimension (time in trial)
+* renew it via [add_badtrials]('./code/0.TrialScreening/add_badtrials.m')
+* debug on freqanalysis and normalization, trigger a `parfor` parrallel processing of the dataset
+    - normalized result at `data_freq.powspectra_norm`
+     
+## 2020.12.02
+* progress last night failed, unknown reason: dot index not supported
+    - Any way to make error line specific?
+    - To make trial progress also explicit?
+    - There are also out of memory errors
+* run with fewer trials doesn't report errors, might be out of memory problem?
+    - reduce number of workers down to 6
+* succeed in some sessions, bad sessions here:
+    - R120416: out of memory
+    - ...
+* decide to use only 3 workers
+
+## 2020.12.03
+* mostly done, bad sessions:
+    - R120420 (text progress must be initialized with a string)
+    - R120413 (text progress)
+    - R120410 (text progress)
+    - R120418 (text progress)
+    - R120517 (text progress)
+    - R120523
+    - R120416
+    - R120521
+    - R120503
+* failure rate about 50%
+* problem with text progress bar, quoted out during pause, don't know if it works.
+* add script that skip exist files
+* restart processing.
+
+## 2020.12.07
+* debug on file saving, only saved a string called 'data_freq' previously...
+* The size of data is extremely large with all channels and all correct trials, now separate preprocessed data (`1.Preprocessing`) and normalized data (`2.Normalized`)
+* Migrade data from `/mnt/share/XUANYU/MONKEY/JacobLabMonkey` to `/mnt/storage2/XUANYU/MONKEY/Non-ion`
+    - copy the following folders:
+        - 0.TrialScreening
+        - 1.Preprocessing
+        - 2.Normalized
+        - raw_nex
+        - spike_nexctx
+    - remove folder 0./1./2. from the share folder
+* takes about 3 days to get all processing done;
+* Now file-saving is moved into the `norm_by_prevtrl.m`, during normalization process, and trial info was also included.
+* Better progress report in command window
+* result padding change to [-0.5, 3.5]
+
+## 2020.12.08
+* file size too big, split by channel for storage, discard the plan to store pure frequency data
+* 
 
 # To-do list:
 * (x) define a trial structure for the data, arrage that for whole-dataset analysis (ft_redefinetrial)
 * (x) artifact screening (for trials / electrodes)
-* () familiarize with superlet method
+* (x) familiarize with superlet method
 
 # Ideas to go
 * Item specific bursts / burst identities:

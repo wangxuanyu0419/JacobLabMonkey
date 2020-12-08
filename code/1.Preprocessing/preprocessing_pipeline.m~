@@ -1,0 +1,55 @@
+% Perform spectral analysis and normalized by the previous 9 trials +
+% current trial. 
+
+
+close all
+clear all
+
+%% cd to root path
+stdir = '/mnt/share/XUANYU/MONKEY/JacobLabMonkey';
+cd(stdir);
+
+%% read in data_prep, segmented LFP functions
+inpath = [stdir '/data/0.TrialScreening'];
+prepdir = dir([inpath '/*.mat']); % dir to all nex files
+expath = [stdir '/data/1.Preprocessing'];
+exdir = dir([expath '/*.mat']);
+
+%% compare the input data and already exist outputs
+[f_name,f_list] = setdiff({prepdir.name},{exdir.name});
+f_path = prepdir(f_list).folder;
+
+cfg_prep = [];
+cfg_prep.method              = 'superlet';
+cfg_prep.output              = 'pow';
+cfg_prep.channel             = 'all';
+cfg_prep.trials              = 'all';
+cfg_prep.keeptrials          = 'yes';
+cfg_prep.pad                 = 'nextpow2';
+cfg_prep.padtype             = 'zero';
+cfg_prep.polyremoval         = 0;
+cfg_prep.foi                 = 4:100;
+cfg_prep.toi                 = -0.7:0.001:3.2; % result padded with 0.2s
+cfg_prep.superlet.basewidth  = 3;
+cfg_prep.superlet.combine    = 'additive';
+cfg_prep.superlet.order      = round(linspace(1,30,numel(cfg_prep.foi)));
+
+parfor in = 1:length(f_list) % do parallel processing across sessions, skip processed files
+    try
+        data_prep = parload(fullfile(f_path(i),prepdir(i).name));
+        fprintf('Now start %s\n',prepdir(i).name(1:7));
+        
+        data_freq = ft_freqanalysis(cfg_prep,data_prep);
+        
+        % pass badtrial to data_freq
+        data_freq.badtrials = data_prep.badtrials;
+
+        % normalization with -9~0 prev trl
+        fprintf('Normalizing %s\n',prepdir(i).name(1:7));
+        data_freq = norm_by_prevtrl(data_freq,9);
+        
+        parsave(fullfile(expath,prepdir(i).name(1:7)),'data_freq');
+    catch e
+        fprintf(2,'\nWarning\nSomething wrong with Session %s: \n%s\n',prepdir(i).name(1:7),e.message);
+    end
+end

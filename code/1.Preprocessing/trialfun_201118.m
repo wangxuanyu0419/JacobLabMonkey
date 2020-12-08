@@ -118,6 +118,9 @@ function trl = trialfun_201118(cfg)
         trlidx = selidx(i);
         trialmarks = Marks(begidxs(trlidx):enddixs(trlidx));
         trialstamps = TimeStamps(begidxs(trlidx):enddixs(trlidx));
+        if isempty(find(trialmarks==eventmark,1))
+            continue
+        end
         anabegstamp = trialstamps(trialmarks == eventmark) - preanapad;
         anaendstamp = anabegstamp + anatriallen;
         trl(i,:) = [anabegstamp anaendstamp -preanapad];
