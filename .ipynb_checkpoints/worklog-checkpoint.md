@@ -206,7 +206,13 @@ smaller values in power, especially for lower frequencies. Might be normalized a
 
 ## 2020.12.08
 * file size too big, split by channel for storage, discard the plan to store pure frequency data
-* 
+
+## 2020.12.12
+* preprocessing and normalization done, successful in all sessions and all channels
+* try to start burst extraction:
+    - try thresholding with e.g. z.*(z>2)
+    - reference to code `share/DANIEL/IONTOPHORESIS/_plots/bursts/addASLT_3_30/190813-pow_z_thr/code`
+    - 
 
 # To-do list:
 * (x) define a trial structure for the data, arrage that for whole-dataset analysis (ft_redefinetrial)
