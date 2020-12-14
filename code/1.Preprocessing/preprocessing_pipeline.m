@@ -39,7 +39,7 @@ cfg_prep.superlet.order      = round(linspace(1,30,numel(cfg_prep.foi)));
 parfor i = 1:length(f_list) % do parallel processing across sessions, skip processed files
     f_title = f_name{i}(1:7);
     try
-        data_prep = parload(fullfile(f_path,f_name{i}));
+        data_prep = parload(fullfile(f_path,f_name{i}),'data_prep');
         fprintf('Now start %s\n',f_title);
         
         data_freq = ft_freqanalysis(cfg_prep,data_prep);

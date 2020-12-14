@@ -212,7 +212,13 @@ smaller values in power, especially for lower frequencies. Might be normalized a
 * try to start burst extraction:
     - try thresholding with e.g. z.*(z>2)
     - reference to code `share/DANIEL/IONTOPHORESIS/_plots/bursts/addASLT_3_30/190813-pow_z_thr/code`
-    - 
+
+## 2020.12.14
+* plot example trials, overlaid with Daniel's burst peaks:
+![Example trial](./data/2.Normalized/R120516-AD01_008_D.jpg)
+* There're differences, suspect reason: my normalization didn't include error and missing trials, but only with correct trials
+    - pons: heterogeneous background? small z-score size?
+* Next step: burst extraction
 
 # To-do list:
 * (x) define a trial structure for the data, arrage that for whole-dataset analysis (ft_redefinetrial)
