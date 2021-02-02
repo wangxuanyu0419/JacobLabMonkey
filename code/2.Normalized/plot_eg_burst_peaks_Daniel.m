@@ -15,7 +15,7 @@ for i = 1:numel(f)
         hold on
         trl = j-3;
         z = squeeze(data_norm.powspctrm_norm(trl,:,:));
-        imagesc(data_norm.time,data_norm.freq,z.*(z>=1.5)); % threshold at 2 SD
+        imagesc(data_norm.time,data_norm.freq,z.*(z>=2)); % threshold at 2 SD
         
         dm = pow.trialinfo.bursts{j,1};
         scatter(dm.t,dm.f,'MarkerFaceColor','r');
@@ -25,12 +25,12 @@ for i = 1:numel(f)
         xlim([-0.5 3.5]);
         ylabel('freq [Hz]')
         ylim([4 100]);
-        caxis([0 3.5]);
+        caxis([0 10]);
         colorbar
         arrayfun(@(x) line(ones(2,1)*x,ylim,'LineStyle','--'),[0 0.5 1.5 2 3]);
         title(sprintf('Trial %d, threshold 1.5, sess %s, Channel %s, plotted against Daniel bursts',trl,f(i).name(1:7),f(i).name(9:12)));
 
-        print(gcf,fullfile('/mnt/share/XUANYU/MONKEY/JacobLabMonkey/data/2.Normalized',sprintf('%s_%03d_D',f(i).name(1:12),trl)),'-depsc');
+        print(gcf,fullfile('/mnt/share/XUANYU/MONKEY/JacobLabMonkey/data/2.Normalized',sprintf('%s_%03d_D',f(i).name(1:12),trl)),'-dpng');
         close all
     end
 end

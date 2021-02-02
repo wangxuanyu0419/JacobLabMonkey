@@ -220,10 +220,85 @@ smaller values in power, especially for lower frequencies. Might be normalized a
     - pons: heterogeneous background? small z-score size?
 * Next step: burst extraction
 
+## 2021.01.26
+* resume working log, burst extraction done, at `storage2/xuanyu/MONKEY/Non-ion/3.Bursts`
+* .m file at [Burst Extraction](./code/3.Bursts/pipelines/burst_extraction_pipeline.m)
+* filter fw<=1, tw<=1;
+* z threshold = **2**; (line31,`./code/3.Bursts/burst_estimation/find_burstcandidates.m`)
+* burst file at `storage2/xuanyu/MONKEY/Non-ion/3.Bursts`, data_burst.trialinfo.bursts
+
+## 2021.01.27
+* calculate traces, split files by each session, fields:
+	1. burst rate
+	2. burst width / lifetime
+	3. burst amp
+ contain n struct (n = number of channels), e.g. AD01 contain several traces
+* burst statistics for example session (R120516) done, root: `storage2/xuanyu/MONKEY/Non-ion/4.BurstStat/R120516.mat`, 'data_stat'
+	- `label`: (AD Channel names)
+	- `fband`: nx1 cell, frequency bands indicated by 2x1 vector
+	- `condname`: name of conditions for split-trial analysis
+	- `cfg`: configue file, specify fband and min_cyc
+	- `amp/width/rate_bands`: nChan x nfband cell, each contain 1 x nCond cell of average traces for single condition, single frequency band and for single electrode;
+* plot example electrodes: AD01/09/10/11, not done
+
+## 2021.01.28
+* plot example electrode averages for AD01/09/10/11
+* plots at `./data/4.BurstStat`
+	- there seem some problem with my burst extraction, mostly doesn't match with Daniel's.
+	- try to plot 2D fits over spectrograms; see `./data/3.Bursts`
+![sample fit overlap](./data/3.Bursts/R120516-AD01_016_Xuan.png)
+	- fitting looks work, and there are obvious correlations between different bands, maybe problem with the accumulation method;
+	- frequency sorting also work fine. check accumulation
+	
+## 2021.01.29
+* redo frequency analysis, increase padding to -1~4s; normalization method change to -500~0ms before sample onset
+
+## 2021.02.01
+* Redo normalization and different padding done, files in the 1.Preprocessing and 2.Normalization substituted by the new data. 
+* Backup extracted bursts of previous analysis
+	- moved from root of `storage2/..../3.Bursts` to `.../3.Bursts/-0.5_3.5_norm_by_9pretrial` subfolder
+	- new files in the root of `.../3.Bursts` belongs to the new analysis pipeline
+* Redo burst extraction
+	- error: there are NaNs in the pow data.
+	- solution: substitute NaNs with 0 (`find_burstcandidates.m`);
+* From Daniel: normalization per pixel is wrong! should be per frequency
+	- redo normalization, by each frequency, with -9~0 trials before.
+	- should try `R120516` first before running the pipeline (`./code/1.Preprocessing.preprocessing_210201.m`)
+* Example session R120516 performed acording to the new analysis method:
+	- padding: -1~4s
+	- normalization: -9~0 trials before, average power per frequency
+![mean power eg trial](./data/2.Normalized/baseline_eg_9pretrl_byfreq.png)
+![mean SD eg trial](./data/2.Normalized/baseline_SD_eg_9pretrl_byfreq.png)
+	- burst extraction tried, fixed well and overlap with Daniel's
+![Daniel overlap](./data/2.Normalized/R120516-AD01_016_D.png)
+![burst fit](./data/3.Bursts/R120516-AD01_016_Xuan.png)
+* Put pipeline on: preprocessing and normalization (editted `preprocessing_pipeline.m`)
+
+## 2021.02.02
+* bugs from parfor, memory runs out; reduce worker to 4, restart;
+* set R120516-AD09 as example electrode:
+	- average burst rate: 
+![eg burst rate](./data/4.BurstStat/Rate/R120516_AD09_All.png)
+	- example trials:
+![eg trial](./data/3.Bursts/2.Normalized/R120516-AD09_016_D.png)
+	- average LFP:
+![eg LFP](./data/1.Preprocessing/plot_example/...)
+
+
+
+
+
+
 # To-do list:
 * (x) define a trial structure for the data, arrage that for whole-dataset analysis (ft_redefinetrial)
 * (x) artifact screening (for trials / electrodes)
 * (x) familiarize with superlet method
+* ( ) burst rate statistics: example session: **R120516**
+	- single session, single electrode (**AD01/09/10/11**), 3 freq-bands
+	- single session, by region (**PFC/VIP**), 3 f bands (alpha 04-10, beta 20-35, gamma 50-90)
+	- single session, split by region (in two plots) & by sample (S1-4)
+	- single session, split by region, then by distractor (D0-4)
+* (x) burst amp, burst width
 
 # Ideas to go
 * Item specific bursts / burst identities:

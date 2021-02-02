@@ -1,7 +1,7 @@
 function norm_by_prevtrl(data_freq,n_prevtrl,savepath,savepath_n,f_title)
 % compute z-score by normalizing to n previous trials
-% for the first several trials, padded from end of the session
-% for the sake of data size, save 
+% for the first several trials, take all 10 leading trials
+% normalization per frequency
     
     pow = data_freq.powspctrm;
     pow_n = nan(size(pow));
@@ -31,9 +31,9 @@ function norm_by_prevtrl(data_freq,n_prevtrl,savepath,savepath_n,f_title)
         else
             supermat = pow((itrl-n_prevtrl):itrl,:,:,:);
         end
-        meanmat = mean(supermat);
-        stdmat = std(supermat);
-        pow_n(itrl,:,:,:) = (pow(itrl,:,:,:)-meanmat)./stdmat;
+        meanmat = repmat(squeeze(nanmean(nanmean(supermat,4),1)),1,1,size(supermat,4));
+        stdmat = repmat(squeeze(nanmean(nanstd(supermat,0,4),1)),1,1,size(supermat,4));
+        pow_n(itrl,:,:,:) = (squeeze(pow(itrl,:,:,:))-meanmat)./stdmat;
         data_freq.powspctrm_norm = pow_n;
     end
     

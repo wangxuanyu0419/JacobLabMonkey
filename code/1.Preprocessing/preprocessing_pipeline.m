@@ -31,10 +31,13 @@ cfg_prep.pad                 = 'nextpow2';
 cfg_prep.padtype             = 'zero';
 cfg_prep.polyremoval         = 0;
 cfg_prep.foi                 = 4:100;
-cfg_prep.toi                 = -0.5:0.001:3.5; % result padded with 0.5s
+cfg_prep.toi                 = -1:0.001:4; % result padded with 1s
 cfg_prep.superlet.basewidth  = 3;
 cfg_prep.superlet.combine    = 'additive';
 cfg_prep.superlet.order      = round(linspace(1,30,numel(cfg_prep.foi)));
+
+delete(gcp('nocreate'))
+pools = parpool(4);
 
 parfor i = 1:length(f_list) % do parallel processing across sessions, skip processed files
     f_title = f_name{i}(1:7);
